@@ -6,7 +6,8 @@ param(
     [string]$SigningDir = "$env:LOCALAPPDATA\HGhubSigning"
 )
 $ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName System.Security.Cryptography.ProtectedData
+# Windows PowerShell 5.1 ships ProtectedData in System.Security; PowerShell 7 has its own assembly.
+try { Add-Type -AssemblyName System.Security.Cryptography.ProtectedData } catch { Add-Type -AssemblyName System.Security }
 $scope = [System.Security.Cryptography.DataProtectionScope]::CurrentUser
 $key = Join-Path $SigningDir 'personal.jks'
 $secret = Join-Path $SigningDir 'password.dpapi'
