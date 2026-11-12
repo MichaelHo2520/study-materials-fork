@@ -127,6 +127,7 @@ pub fn parse_target(raw: &str) -> Result<Url, String> {
 }
 
 pub fn parse_target_with_mode(raw: &str, strict: bool) -> Result<Url, String> {
+    if raw.len() > 8192 { return Err("目标地址过长".into()); }
     if raw.chars().any(char::is_control) {
         return Err("目标地址含控制字符".into());
     }

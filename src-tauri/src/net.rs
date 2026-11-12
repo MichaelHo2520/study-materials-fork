@@ -684,8 +684,9 @@ pub async fn fetch_bytes_limited(url: &str, max: usize) -> Result<(Option<String
 mod tests {
     use super::*;
 
-    async fn fixture_response(raw: &'static [u8]) -> reqwest::Response {
+    async fn fixture_response(raw: &[u8]) -> reqwest::Response {
         use std::io::{Read, Write};
+        let raw = raw.to_vec();
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
         std::thread::spawn(move || {
@@ -693,7 +694,7 @@ mod tests {
             socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
             let mut request = [0u8; 4096];
             let _ = socket.read(&mut request);
-            let _ = socket.write_all(raw);
+            let _ = socket.write_all(&raw);
         });
         reqwest::Client::builder().no_proxy().timeout(Duration::from_secs(5)).build().unwrap()
             .get(format!("http://{address}")).send().await.unwrap()
@@ -707,6 +708,11 @@ mod tests {
         assert_eq!(read_limited(response, 8).await.unwrap_err(), "响应内容超过大小限制");
         let response = fixture_response(b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nConnection: close\r\n\r\nabcdefgh").await;
         assert_eq!(read_limited(response, 8).await.unwrap(), b"abcdefgh");
+        let compressed = B64.decode("H4sIAAAAAAACCnN0HAWjYBSMVAAAGvs3twAEAAA=").unwrap();
+        let mut raw = format!("HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", compressed.len()).into_bytes();
+        raw.extend(compressed);
+        let response = fixture_response(&raw).await;
+        assert_eq!(read_limited(response, 128).await.unwrap_err(), "响应内容超过大小限制");
         assert!(!retryable_error("响应内容超过大小限制"));
     }
 

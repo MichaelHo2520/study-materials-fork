@@ -163,15 +163,23 @@ async function seekChecks(page, legacy) {
 async function stallCheck(page) {
   await loadPlayer(page);
   await page.waitForFunction(() => { const v = document.querySelector("video"); return v.buffered.length && v.buffered.end(0) >= 30; });
-  await page.evaluate(async () => { await window.playerSeekFixture.setLogging(true); window.playerSeekFixture.pauseBuffering(); });
-  await clickProgress(page, .8);
-  const logs = await waitLog(page, "seek.timeout");
-  const timeout = logs.find(e => e.event === "seek.timeout");
-  assert.equal(timeout.data.buffering_enabled, false);
-  assert(timeout.data.ready < 3 && timeout.data.seeking, "Timeout must capture the stalled media state");
-  await page.evaluate(() => window.playerSeekFixture.resumeBuffering());
-  await waitLog(page, "seek.resumed");
-  return { fault_injected: true, timeout_ms: timeout.data.elapsed_ms };
+  // startLoad() now correctly resumes buffering on seek. Hold actual segment traffic
+  // instead of expecting the old pauseBuffering fault to survive that recovery.
+  let release;
+  const gate = new Promise(done => { release = done; });
+  const hold = async route => { await gate; await route.continue(); };
+  await page.route("**/seg?*", hold);
+  try {
+    await page.evaluate(() => window.playerSeekFixture.setLogging(true));
+    await clickProgress(page, .8);
+    const logs = await waitLog(page, "seek.timeout");
+    const timeout = logs.find(e => e.event === "seek.timeout");
+    assert.equal(timeout.data.buffering_enabled, true, "Seek must keep buffering enabled");
+    assert(timeout.data.ready < 3 && timeout.data.seeking, "Timeout must capture the stalled media state");
+    release();
+    await waitLog(page, "seek.resumed");
+    return { fault_injected: "held segment traffic", timeout_ms: timeout.data.elapsed_ms };
+  } finally { release(); await page.unroute("**/seg?*", hold); }
 }
 async function managedMediaCheck(page) {
   // Chromium supplies real MSE decoding/buffering; only the MMS constructor and streaming

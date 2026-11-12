@@ -77,6 +77,15 @@ fn cache_enforces_bytes_entries_and_replacement() {
     assert_eq!(cache.lock().unwrap().len(), 1);
 }
 
+#[cfg(test)]
+#[test]
+fn playlist_rewrite_bounds_input_lines_and_expanded_output() {
+    assert!(rewrite_playlist("https://cdn.example/list.m3u8", &"x".repeat(2 * 1024 * 1024 + 1), LOCAL_ORIGIN).is_err());
+    assert!(rewrite_playlist("https://cdn.example/list.m3u8", &format!("#EXTM3U\n{}", "x".repeat(16385)), LOCAL_ORIGIN).is_err());
+    let long_base = format!("https://cdn.example/{}/list.m3u8", "x".repeat(4000));
+    assert!(rewrite_playlist(&long_base, &format!("#EXTM3U\n{}", "s.ts\n".repeat(2200)), LOCAL_ORIGIN).is_err());
+}
+
 /* ───────────────────────── AES ───────────────────────── */
 
 fn aes_cbc_decrypt(data: &[u8]) -> Option<Vec<u8>> {
@@ -228,14 +237,17 @@ pub async fn load_playlist(url: &str, prefix: &str) -> Result<Arc<String>, Strin
     if !text.trim_start_matches('\u{feff}').starts_with("#EXTM3U") {
         return Err("响应不是 HLS 播放列表".into());
     }
-    let arc = Arc::new(rewrite_playlist(url, text, prefix));
+    let arc = Arc::new(rewrite_playlist(url, text, prefix)?);
     cache_put(&PL_CACHE, cache_key, arc.clone(), PL_CACHE_MAX, 8 * 1024 * 1024);
     Ok(arc)
 }
 
-fn rewrite_playlist(url: &str, text: &str, prefix: &str) -> String {
+fn rewrite_playlist(url: &str, text: &str, prefix: &str) -> Result<String, String> {
+    const MAX_OUTPUT: usize = 8 * 1024 * 1024;
+    if text.len() > 2 * 1024 * 1024 || url.len() > 8192 { return Err("播放列表超过大小限制".into()); }
     let mut out = String::with_capacity(text.len() + 512);
     for raw in text.trim_start_matches('\u{feff}').lines() {
+        if out.len() > MAX_OUTPUT || raw.len() > 16 * 1024 { return Err("播放列表超过大小限制".into()); }
         let line = raw.trim_end();
         if line.is_empty() {
             out.push('\n');
@@ -278,7 +290,8 @@ fn rewrite_playlist(url: &str, text: &str, prefix: &str) -> String {
         out.push('\n');
     }
 
-    out
+    if out.len() > MAX_OUTPUT { return Err("播放列表超过大小限制".into()); }
+    Ok(out)
 }
 
 fn absolutize_uri_in_attr(base: &str, line: &str) -> String {
@@ -350,13 +363,10 @@ fn segment_response(
         || bytes.starts_with(b"\xef\xbb\xbf#EXTM3U");
     if playlist {
         return match std::str::from_utf8(&bytes) {
-            Ok(text) => respond(
-                200,
-                "application/vnd.apple.mpegurl",
-                rewrite_playlist(target, text, origin).into_bytes(),
-                // Rewriting nested URIs does not require disabling the upstream cache policy.
-                "public, max-age=3600",
-            ),
+            Ok(text) => match rewrite_playlist(target, text, origin) {
+                Ok(rewritten) => respond(200, "application/vnd.apple.mpegurl", rewritten.into_bytes(), "public, max-age=3600"),
+                Err(e) => respond(502, "text/plain", e.into_bytes(), "no-store"),
+            },
             Err(_) => respond(
                 502,
                 "text/plain",
@@ -378,6 +388,9 @@ fn segment_response(
 /// `origin` 是本平台自定义协议的完整基址，见 [`LOCAL_ORIGIN`]；用于改写 m3u8 里的
 /// 分片与 key 地址。正常情况下调用方直接传 [`LOCAL_ORIGIN`]。
 pub async fn handle(path: &str, query: &str, origin: &str) -> Response<Vec<u8>> {
+    if query.len() > 64 * 1024 {
+        return respond(400, "text/plain", b"media URL too long".to_vec(), "no-store");
+    }
     let target = query
         .split('&')
         .find_map(|kv| kv.strip_prefix("u="))
@@ -437,7 +450,7 @@ mod tests {
     #[test]
     fn dateranges_keep_timing_and_scte_metadata_but_drop_external_resources() {
         let line = "#EXTM3U\n#EXT-X-DATERANGE:ID=\"event\",START-DATE=\"2026-11-07T00:00:00Z\",DURATION=4,SCTE35-OUT=0xFC,X-TEXT=\"a,b\",X-ASSET-URI=\"https://evil.example/ad\",X-ASSET-LIST=\"https://evil.example/list.json\"\n";
-        let out = rewrite_playlist("https://cdn.example/master.m3u8", line, LOCAL_ORIGIN);
+        let out = rewrite_playlist("https://cdn.example/master.m3u8", line, LOCAL_ORIGIN).unwrap();
         assert!(out.contains("DURATION=4,SCTE35-OUT=0xFC,X-TEXT=\"a,b\""));
         assert!(out.contains("START-DATE="));
         assert!(!out.contains("evil.example") && !out.contains("X-ASSET"));
@@ -478,7 +491,7 @@ mod tests {
             .headers()
             .contains_key("Access-Control-Allow-Origin"));
         let optional = rewrite_playlist("https://cdn.example/list.m3u8",
-            "#EXTM3U\n#EXT-X-CONTENT-STEERING:SERVER-URI=\"https://other.example/list.json\"\n#EXT-X-DATERANGE:ID=\"ad\",X-ASSET-LIST=\"http://127.0.0.1/assets\"\nsegment.ts\n", LOCAL_ORIGIN);
+            "#EXTM3U\n#EXT-X-CONTENT-STEERING:SERVER-URI=\"https://other.example/list.json\"\n#EXT-X-DATERANGE:ID=\"ad\",X-ASSET-LIST=\"http://127.0.0.1/assets\"\nsegment.ts\n", LOCAL_ORIGIN).unwrap();
         assert!(!optional.contains("CONTENT-STEERING") && !optional.contains("X-ASSET-LIST"));
         assert!(optional.contains("#EXT-X-DATERANGE:ID=\"ad\""));
         let bom = segment_response(
@@ -539,7 +552,7 @@ mod tests {
     fn playlist_rewrite_works() {
         let base = "https://cdn.example/videos5/abc/abc.m3u8?auth_key=9999999999-0-0-deadbeef&v=3&via=hgdj";
         let text = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin?auth_key=9999999999-0-0-deadbeef\"\n#EXTINF:4,\nseg-1.ts?auth_key=9999999999-0-0-deadbeef\n";
-        let body = rewrite_playlist(base, text, LOCAL_ORIGIN);
+        let body = rewrite_playlist(base, text, LOCAL_ORIGIN).unwrap();
 
         assert!(body.contains("#EXTM3U"), "not a playlist: {body}");
         assert!(
