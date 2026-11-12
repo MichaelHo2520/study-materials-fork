@@ -57,9 +57,15 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
   const [panel, setPanel] = useState<"episodes" | "comments" | "article" | "detail" | null>(null);
   const [descOpen, setDescOpen] = useState(false);
   /* 续播：拿到时长后再 seek 一次（只对进入时那一条生效） */
-  const resumeRef = useRef<{ key: string; t: number } | null>(
-    startTime && startTime > 1 ? { key: `${videoIds[startIndex]}:${startEp || 1}`, t: startTime } : null,
+  const resumeRef = useRef<Record<string, number>>(
+    startTime && startTime > 1 ? { [`${videoIds[startIndex]}:${startEp || 1}`]: startTime } : {},
   );
+  /* 每次切到某一部时，从观看记录恢复上次的集数（手动选集优先）与秒数 */
+  const histEpRef = useRef<Record<number, number>>({});
+  const enteredRef = useRef<number | null>(null);
+  /* 有声自动播放被宿主拒绝时临时静音，等用户第一次触摸后恢复；不改动已保存的静音偏好 */
+  const [soundBlocked, setSoundBlocked] = useState(false);
+  const soundUnblockedAt = useRef(0);
   /* 观看进度：onTime 里节流写回 store，卸载时再兜一次 */
   const liveRef = useRef({ id: 0, ep: 1, dur: 0, t: 0 });
   const lastSaveRef = useRef(0);
@@ -126,7 +132,18 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
 
   const curId = videoIds[index];
   const detail = details[curId];
-  const curEp = epMap[curId] || 1;
+  if (kind === "video" && curId && enteredRef.current !== curId) {
+    enteredRef.current = curId;
+    const h = store.history.find((x) => x.id === curId);
+    if (h) {
+      if (!epMap[curId]) histEpRef.current[curId] = h.ep;
+      const ep = epMap[curId] || h.ep;
+      const finished = h.dur > 0 && h.t >= h.dur - 5;
+      if (ep === h.ep && h.t > 1 && !finished) resumeRef.current[`${curId}:${ep}`] = h.t;
+    }
+  }
+  const curEp = epMap[curId] || histEpRef.current[curId] || 1;
+  const mutedEff = muted || soundBlocked;
   const playKey = `${curId}:${curEp}`;
   const playUrl = playUrls[playKey] || "";
   useEffect(() => { videoRef.current?.trace("page.active", { active, view: mode, video_id: curId, episode: curEp }); }, [active, mode, curId, curEp]);
@@ -150,11 +167,12 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
   const onDurationTick = (d: number) => {
     setDuration(d);
     liveRef.current = { ...liveRef.current, dur: d };
-    const r = resumeRef.current;
-    if (r && r.key === playKey && r.t > 1 && (!d || r.t < d - 3)) {
-      resumeRef.current = null;
-      videoRef.current?.seek(r.t, "history_resume");
-      setTime(r.t);
+    const t = resumeRef.current[playKey];
+    if (t === undefined) return;
+    delete resumeRef.current[playKey];
+    if (t > 1 && (!d || t < d - 3)) {
+      videoRef.current?.seek(t, "history_resume");
+      setTime(t);
     }
   };
 
@@ -322,8 +340,14 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
     const el = boxRef.current;
     if (!el) return;
     const next = Math.max(0, Math.min(videoIds.length - 1, index + delta));
+    if (fs) {
+      /* 全屏时列表不滚动（其它条目已隐藏），直接换条目；退出全屏时会按 index 重新对齐 */
+      setIndex(next);
+      if (onNearEnd && next >= videoIds.length - 3) onNearEnd();
+      return;
+    }
     el.scrollTo({ top: next * el.clientHeight, behavior: "smooth" });
-  }, [index, videoIds.length]);
+  }, [index, videoIds.length, fs, onNearEnd]);
 
   /* 初始定位 */
   useEffect(() => {
@@ -383,6 +407,8 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
     setVsize({ w: 0, h: 0 });
     setPortraitFit("contain");
     setZoom({ scale: 1, x: 0, y: 0, gesturing: false });
+    /* 上一条的进度已按节流落盘；清掉以免离开时把它重新顶到观看记录最前面 */
+    liveRef.current = { id: 0, ep: 1, dur: 0, t: 0 };
   }, [playKey]);
 
   /* 进出全屏时复位双指缩放并校准滚动条位置 */
@@ -398,16 +424,42 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
   }, [fs]);
 
   /* 音量/静音同步 */
-  useEffect(() => { videoRef.current?.mute(muted); }, [muted]);
+  useEffect(() => { videoRef.current?.mute(mutedEff); }, [mutedEff]);
+  useEffect(() => {
+    if (!soundBlocked) return undefined;
+    const unblock = () => { soundUnblockedAt.current = Date.now(); setSoundBlocked(false); };
+    window.addEventListener("pointerdown", unblock, { capture: true, once: true });
+    window.addEventListener("keydown", unblock, { capture: true, once: true });
+    return () => {
+      window.removeEventListener("pointerdown", unblock, { capture: true });
+      window.removeEventListener("keydown", unblock, { capture: true });
+    };
+  }, [soundBlocked]);
+  /* 刚因「第一次触摸」恢复声音的那一下点在静音键上时，不要再把它切回静音 */
+  const toggleMuted = () => {
+    if (Date.now() - soundUnblockedAt.current < 600) return;
+    setMuted((m) => !m);
+  };
   useEffect(() => { videoRef.current?.volume(volume); }, [volume]);
   /* 倍速同步（长按 2x / 锁定 2x / 基准倍速） */
   useEffect(() => { videoRef.current?.rate(effRate); }, [effRate, playKey]);
 
   /* 离开播放页时把最后位置落盘并清理计时器 */
-  useEffect(() => () => {
-    clearTapTimer();
-    const s = liveRef.current;
-    if (s.id && s.dur) addHistory(s.id, s.ep, s.t, s.dur);
+  useEffect(() => {
+    const flush = () => {
+      const s = liveRef.current;
+      if (s.id && s.dur) addHistory(s.id, s.ep, s.t, s.dur);
+    };
+    /* 切到后台 / 被系统回收前也落一次，避免丢掉最后几秒 */
+    const onHide = () => { if (document.visibilityState === "hidden") flush(); };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", flush);
+      clearTapTimer();
+      flush();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -426,7 +478,7 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
         case "ArrowRight": e.preventDefault(); videoRef.current?.seek(time + 5, "keyboard_shortcut"); break;
         case "f": case "F": toggleFull(); break;
         case "t": case "T": setTheater((v) => !v); break;
-        case "m": case "M": setMuted((v) => !v); break;
+        case "m": case "M": toggleMuted(); break;
         case "l": case "L": onLike(); break;
         case "s": case "S": onFav(); break;
         case "c": case "C": setPanel("comments"); break;
@@ -759,8 +811,21 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
   };
 
   const pickEp = (ep: number) => {
+    delete resumeRef.current[`${curId}:${ep}`];
     setEpMap((m) => ({ ...m, [curId]: ep }));
     setPanel(null);
+  };
+
+  /* 播完：先接下一集（集数不连续时取后面最近的一集）；整部播完且开启自动连播时接下一部。
+     面板（评论/选集）开着时不换片，免得打断正在看的内容。 */
+  const onPlaybackEnded = () => {
+    const next = episodes.filter((e) => e.ep_num > curEp).sort((a, b) => a.ep_num - b.ep_num)[0];
+    if (next) {
+      delete resumeRef.current[`${curId}:${next.ep_num}`];
+      setEpMap((m) => ({ ...m, [curId]: next.ep_num }));
+      return;
+    }
+    if (store.autoNext && !panel && index < videoIds.length - 1) go(1);
   };
 
   const likeCount = useMemo(() => {
@@ -821,7 +886,7 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
                       autoPlay
                       active={active}
                       diagnosticContext={{ active, view: mode, kind, video_id: curId, episode: curEp }}
-                      muted={muted}
+                      muted={mutedEff}
                       volume={volume}
                       rate={effRate}
                       fit={effectiveFit}
@@ -836,7 +901,8 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
                       onPlaying={() => { setPaused(false); setWaiting(false); setErr(""); }}
                       onPause={() => setPaused(true)}
                       onWaiting={() => setWaiting(true)}
-                      onEnded={() => { const next = episodes.find((e) => e.ep_num === curEp + 1); if (next) pickEp(next.ep_num); }}
+                      onEnded={onPlaybackEnded}
+                      onSoundBlocked={() => setSoundBlocked(true)}
                       onError={(m) => setErr(m)}
                     />
                   </div>
@@ -1191,7 +1257,7 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
       {isDesktop && (
         <PlayerControls
           paused={paused} time={time} duration={duration} buffered={buffered} rate={rate}
-          muted={muted} volume={volume} theater={theater} fullscreen={fullscreen}
+          muted={mutedEff} volume={volume} theater={theater} fullscreen={fullscreen}
           visible={active && !idle}
           seekEnabled={active && !controlsLocked}
           seekKey={playKey}
@@ -1201,7 +1267,7 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
           onSeek={(t, source) => { videoRef.current?.seek(t, source); setTime(t); }}
           onSeekInteraction={(phase, input, target, pointerTarget) => videoRef.current?.trace(`seek.input.${phase}`, { input, target, pointer_target: pointerTarget })}
           onRate={(r) => { setRate(r); videoRef.current?.rate(r); }}
-          onMute={() => setMuted((m) => !m)}
+          onMute={toggleMuted}
           onVolume={(v) => setVolume(v)}
           onPip={togglePip}
           onLock={lockControls}
@@ -1313,9 +1379,9 @@ export default function Feed({ videoIds, startIndex = 0, title = "", mode, kind 
       </div>
       {!isDesktop && !fs && !clean && !controlsLocked && active && (
         <div className="absolute right-3 z-40 flex items-center gap-2" style={{ top: "calc(var(--sat, 0px) + 6px)" }}>
-          <button onClick={() => setMuted(m => !m)} aria-label={muted ? "取消静音" : "静音"}
+          <button onClick={toggleMuted} aria-label={mutedEff ? "取消静音" : "静音"}
             className="hg-chip w-9 h-9 rounded-full flex items-center justify-center pressable elev-1">
-            {muted ? <IVolMute size={17} /> : <IVol size={17} />}
+            {mutedEff ? <IVolMute size={17} /> : <IVol size={17} />}
           </button>
           <button onClick={lockControls} aria-label="锁定播放控制" title="锁定播放控制" aria-pressed={false}
             className="hg-chip w-9 h-9 rounded-full flex items-center justify-center pressable elev-1"><ILockF size={17} /></button>

@@ -4,12 +4,12 @@ import { useStore } from "../store";
 import { Modal, Toggle } from "../components/ui";
 import LinePicker from "../components/LinePicker";
 import { copyPlaybackLog, initPlaybackLog, setPlaybackLog, usePlaybackLog } from "../playbackDiagnostics";
-import { IBack, IBoltF, IBroom, IChevR, IHeart, IInfo, ILink, ILockF, IMoon, IRefresh, ISettings, ISun, IVolMute } from "../icons";
+import { IBack, IBoltF, IBroom, IChevR, IHeart, IInfo, ILink, ILockF, IMoon, IPlayF, IRefresh, ISettings, ISun, IVolMute } from "../icons";
 
 /* 独立设置页：线路 / 外观 / 播放 / 本地数据 / 清理缓存 / 网络诊断 / 关于
    入口：Windows 侧栏「设置」、Android「我的」右上角齿轮 */
 export default function Settings({ onBack, wide }: { onBack: () => void; wide: boolean }) {
-  const { theme, setTheme, favs, history, muteOnStartup, setMuteOnStartup, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity, toast } = useStore();
+  const { theme, setTheme, favs, history, muteOnStartup, setMuteOnStartup, autoNext, setAutoNext, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity, toast } = useStore();
   const [about, setAbout] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -82,9 +82,17 @@ export default function Settings({ onBack, wide }: { onBack: () => void; wide: b
               <span className="w-8 h-8 rounded-full bg-s3 flex items-center justify-center text-primary"><IVolMute size={16} /></span>
               <div className="flex-1 min-w-0">
                 <div className="text-[12.5px] text-on">启动时静音</div>
-                <div className="text-[10.5px] text-mut">默认开启，每次启动均静音；关闭后记住上次静音状态。下次启动生效。</div>
+                <div className="text-[10.5px] text-mut">默认关闭，记住上次的静音状态与音量；开启后每次启动均静音。下次启动生效。</div>
               </div>
               <Toggle on={muteOnStartup} onChange={setMuteOnStartup} label="启动时静音" />
+            </div>
+            <div className="flex items-center gap-3 px-3.5 py-3">
+              <span className="w-8 h-8 rounded-full bg-s3 flex items-center justify-center text-primary"><IPlayF size={14} /></span>
+              <div className="flex-1 min-w-0">
+                <div className="text-[12.5px] text-on">自动连播</div>
+                <div className="text-[10.5px] text-mut">一集播完自动接下一集；整部播完后接着播列表里的下一部。</div>
+              </div>
+              <Toggle on={autoNext} onChange={setAutoNext} label="自动连播" />
             </div>
           </Section>
 

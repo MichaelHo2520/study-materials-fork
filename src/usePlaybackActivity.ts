@@ -4,9 +4,13 @@ import type Hls from "hls.js";
 /** Keep asynchronous autoplay and error recovery subject to the latest page activity. */
 export function usePlaybackActivity(
   videoRef: RefObject<HTMLVideoElement | null>, hlsRef: RefObject<Hls | null>,
-  { active, autoPlay, src, trace }: { active: boolean; autoPlay: boolean; src: string; trace: (event: string, data?: Record<string, unknown>) => void },
+  { active, autoPlay, src, trace, onSoundBlocked }: {
+    active: boolean; autoPlay: boolean; src: string; trace: (event: string, data?: Record<string, unknown>) => void;
+    /** 有声自动播放被宿主拒绝（尚无用户手势）时回调，由调用方决定是否先静音起播 */
+    onSoundBlocked?: () => void;
+  },
 ) {
-  const latest = useRef({ active, trace }); latest.current = { active, trace };
+  const latest = useRef({ active, trace, onSoundBlocked }); latest.current = { active, trace, onSoundBlocked };
   const wanted = useRef(autoPlay);
   const mounted = useRef(true);
   const previous = useRef(active);
@@ -26,7 +30,10 @@ export function usePlaybackActivity(
     v.play().then(() => {
       // The page may have changed while play() was pending.
       if (!mounted.current || !latest.current.active) v.pause();
-    }).catch(e => latest.current.trace("play.rejected", { source, error_name: e?.name }));
+    }).catch(e => {
+      latest.current.trace("play.rejected", { source, error_name: e?.name });
+      if (e?.name === "NotAllowedError" && !v.muted && mounted.current && latest.current.active) latest.current.onSoundBlocked?.();
+    });
   }, []);
   const pause = useCallback((source = "handle") => {
     wanted.current = false;

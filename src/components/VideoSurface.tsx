@@ -42,6 +42,8 @@ type Props = {
   onWaiting?: () => void;
   onEnded?: () => void;
   onError?: (msg: string) => void;
+  /** 有声自动播放被拒绝，已临时静音起播；外层应把 muted 置真，等用户手势后再恢复 */
+  onSoundBlocked?: () => void;
   onClick?: () => void;
   className?: string;
 };
@@ -51,7 +53,7 @@ const VideoSurface = forwardRef<VideoHandle, Props>(function VideoSurface(
   { src, poster, autoPlay = true, active = true, diagnosticContext = {}, muted = false, loop = false, fit = "contain",
     scale = 1, panX = 0, panY = 0, isGesturing = false,
     volume = 1, rate = 1,
-    onTime, onDuration, onSize, onPlaying, onPause, onWaiting, onEnded, onError, onClick, className = "" },
+    onTime, onDuration, onSize, onPlaying, onPause, onWaiting, onEnded, onError, onSoundBlocked, onClick, className = "" },
   ref,
 ) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -61,7 +63,20 @@ const VideoSurface = forwardRef<VideoHandle, Props>(function VideoSurface(
   const lastSizeRef = useRef({ w: 0, h: 0 });
   const [ready, setReady] = useState(false);
   const { trace, requestSeek } = usePlayerDiagnostics(videoRef, hlsRef, { ...diagnosticContext, active, resource: mediaResource(src) });
-  const activity = usePlaybackActivity(videoRef, hlsRef, { active, autoPlay, src, trace });
+  /* 有声自动播放被拒后临时静音：在外层 muted 跟上之前，别让 reapply 把它改回有声（否则会被暂停） */
+  const forcedMuteRef = useRef(false);
+  const activity = usePlaybackActivity(videoRef, hlsRef, {
+    active, autoPlay, src, trace,
+    onSoundBlocked: () => {
+      const v = videoRef.current;
+      if (!v) return;
+      forcedMuteRef.current = true;
+      v.muted = true;
+      trace("play.sound_blocked");
+      v.play().catch(() => {});
+      onSoundBlocked?.();
+    },
+  });
 
   const reportSizeAndDuration = (v: HTMLVideoElement) => {
     if (v.duration && Number.isFinite(v.duration) && v.duration > 0) {
@@ -175,7 +190,7 @@ const VideoSurface = forwardRef<VideoHandle, Props>(function VideoSurface(
       const v = videoRef.current;
       if (!v) return;
       v.volume = volume;
-      v.muted = muted;
+      v.muted = muted || forcedMuteRef.current;
       v.playbackRate = rate;
     };
     applySettings();
@@ -290,13 +305,13 @@ const VideoSurface = forwardRef<VideoHandle, Props>(function VideoSurface(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
 
-  useEffect(() => { if (videoRef.current) videoRef.current.muted = muted; }, [muted]);
+  useEffect(() => { forcedMuteRef.current = false; if (videoRef.current) videoRef.current.muted = muted; }, [muted]);
   useEffect(() => { if (videoRef.current) videoRef.current.volume = volume; }, [volume]);
   useEffect(() => { if (videoRef.current) videoRef.current.playbackRate = rate; }, [rate]);
 
   const reapply = (v: HTMLVideoElement) => {
     v.volume = volume;
-    v.muted = muted;
+    v.muted = muted || forcedMuteRef.current;
     v.playbackRate = rate;
   };
 
@@ -331,7 +346,6 @@ const VideoSurface = forwardRef<VideoHandle, Props>(function VideoSurface(
         playsInline
         webkit-playsinline="true"
         preload="auto"
-        muted={muted}
         loop={loop}
         onClick={onClick}
         className={`w-full h-full bg-black ${fit === "cover" ? "object-cover" : "object-contain"}`}

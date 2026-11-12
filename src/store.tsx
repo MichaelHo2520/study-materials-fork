@@ -50,14 +50,19 @@ type Persist = {
   follows: number[];
   muted: boolean;
   muteOnStartup: boolean;
+  /** 播完自动接下一集；整部播完后接列表里的下一部 */
+  autoNext: boolean;
   volume: number;
   searchHist: string[];
+  /** 本地数据版本，用于一次性迁移旧默认值 */
+  v: number;
 };
 
 const LS = "hghub_app_v1";
 const DEFAULTS: Persist = {
   likes: [], favs: [], history: [], follows: [],
-  muted: true, muteOnStartup: true, volume: 0.7, searchHist: [],
+  muted: false, muteOnStartup: false, autoNext: true, volume: 0.7, searchHist: [],
+  v: 2,
 };
 
 /** 旧版本 history 是 number[]，读出来时升级成带进度的结构 */
@@ -81,10 +86,14 @@ function loadPersist(): Persist {
   try {
     const raw = localStorage.getItem(LS);
     if (!raw) return DEFAULTS;
-    const p = { ...DEFAULTS, ...(JSON.parse(raw) as Partial<Persist>) };
-    // 只在启动时应用；本次使用中取消静音不会关闭此偏好。
-    const muteOnStartup = p.muteOnStartup !== false;
-    return { ...p, muteOnStartup, muted: muteOnStartup || p.muted === true, history: normalizeHistory(p.history) };
+    const saved = JSON.parse(raw) as Partial<Persist>;
+    const p = { ...DEFAULTS, ...saved };
+    // v2：默认改为记住上次的静音状态。旧版本「启动时静音」默认开启且会被原样存盘，
+    // 这里一次性改回关闭并取消静音；之后完全以用户自己的选择为准。
+    if ((saved.v ?? 1) < 2) { p.muteOnStartup = false; p.muted = false; p.v = 2; }
+    // 「启动时静音」只在启动时应用；本次使用中取消静音不会关闭此偏好。
+    const muteOnStartup = p.muteOnStartup === true;
+    return { ...p, muteOnStartup, autoNext: p.autoNext !== false, muted: muteOnStartup || p.muted === true, history: normalizeHistory(p.history) };
   } catch {
     return DEFAULTS;
   }
@@ -125,6 +134,7 @@ type Store = {
   clean: boolean; setClean: (v: boolean | ((p: boolean) => boolean)) => void;
   muted: boolean; setMuted: (v: boolean | ((p: boolean) => boolean)) => void;
   muteOnStartup: boolean; setMuteOnStartup: (on: boolean) => void;
+  autoNext: boolean; setAutoNext: (on: boolean) => void;
   volume: number; setVolume: (v: number) => void;
   searchHist: string[]; addSearch: (q: string) => void; clearSearchHist: () => void;
   strictSecurity: boolean; strictSecurityReady: boolean; securityPending: boolean; cliRelaxed: boolean; setStrictSecurity: (on: boolean) => Promise<void>;
@@ -285,6 +295,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setMuteOnStartup = useCallback((on: boolean) => {
     setP((s) => ({ ...s, muteOnStartup: on }));
   }, []);
+  const setAutoNext = useCallback((on: boolean) => {
+    setP((s) => ({ ...s, autoNext: on }));
+  }, []);
   const setVolume = useCallback((v: number) => {
     const volume = Math.max(0, Math.min(1, v));
     setP((s) => ({ ...s, volume, muted: volume === 0 }));
@@ -302,12 +315,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     muted: p.muted, setMuted, volume: p.volume, setVolume,
     theater, setTheater, fs, setFs, clean, setClean,
     muteOnStartup: p.muteOnStartup, setMuteOnStartup,
+    autoNext: p.autoNext, setAutoNext,
     searchHist: p.searchHist, addSearch, clearSearchHist,
     strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity,
     toasts, toast,
   }), [theme, tab, setTab, stack, push, pop, user, loginOpen, logout,
     p, toggleLikeLocal, toggleFavLocal, toggleFollowLocal, addHistory, clearHistory,
-    setMuted, setMuteOnStartup, setVolume, addSearch, clearSearchHist, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity,
+    setMuted, setMuteOnStartup, setAutoNext, setVolume, addSearch, clearSearchHist, strictSecurity, strictSecurityReady, securityPending, cliRelaxed, setStrictSecurity,
     toasts, toast, theater, setTheater, fs, setFs, clean, setClean]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

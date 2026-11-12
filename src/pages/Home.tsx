@@ -7,7 +7,12 @@ import { ISearch } from "../icons";
 import { Empty } from "../components/ui";
 
 export default function Home({ active, bottomInset }: { active: boolean; bottomInset: number }) {
-  const { toast } = useStore();
+  const { toast, history } = useStore();
+  /* 启动时把上次没看完的那一部放在最前面，进来就接着播（集数与秒数由播放页按观看记录恢复） */
+  const [resumeId] = useState<number>(() => {
+    const h = history[0];
+    return h && !(h.dur > 0 && h.t >= h.dur - 5) ? h.id : 0;
+  });
   const [items, setItems] = useState<VideoCard[]>([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -41,7 +46,8 @@ export default function Home({ active, bottomInset }: { active: boolean; bottomI
 
   useEffect(() => { if (!items.length) load(1); /* eslint-disable-next-line */ }, []);
 
-  const ids = items.map((v) => v.id);
+  const feedIds = items.map((v) => v.id);
+  const ids = resumeId ? [resumeId, ...feedIds.filter((id) => id !== resumeId)] : feedIds;
 
   return (
     <div className="absolute inset-0 bg-black">
