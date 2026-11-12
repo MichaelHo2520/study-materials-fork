@@ -2,6 +2,8 @@
 
 This fork retains the original noncommercial license and HGhub attribution.
 
+The personal Windows/Android build is version 1.2.2, distinct from the imported 1.2.1 snapshot.
+
 - Windows sessions use current-user DPAPI encryption (`session.dat`) and atomic replacement. Failed saves are reported without switching the active session. Legacy `session.json` is deleted and requires a fresh login. Other platforms keep credentials in memory only, so Android requires login after the process exits.
 - Downloads check both declared and decoded body sizes: images 8 MiB, playlists 2 MiB, media segments 32 MiB, business JSON 8 MiB, update/mirror metadata 2 MiB. Four simultaneous media fetches are allowed; queued requests wait up to 20 seconds. Oversize errors are not retried.
 - HLS rewriting also limits input lines to 16 KiB and expanded output to 8 MiB. Network target URLs are limited to 8 KiB. Large/expanded malicious manifests are rejected instead of exhausting memory.

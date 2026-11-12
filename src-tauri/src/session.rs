@@ -122,9 +122,12 @@ fn save_protected(path: &Path, plain: &[u8]) -> Result<(), String> {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Storage::FileSystem::{MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH};
     let encrypted = crypt(plain, true)?;
-    let temp = path.with_extension("pending");
+    static NEXT_TEMP: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let temp = path.with_extension(format!("pending.{}.{}", std::process::id(),
+        NEXT_TEMP.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
     let result = (|| {
-        let mut file = std::fs::File::create(&temp).map_err(|_| "无法保存加密会话")?;
+        let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&temp)
+            .map_err(|_| "无法保存加密会话")?;
         file.write_all(&encrypted).and_then(|_| file.sync_all()).map_err(|_| "无法保存加密会话")?;
         drop(file);
         let source: Vec<u16> = temp.as_os_str().encode_wide().chain(Some(0)).collect();
@@ -174,7 +177,10 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn encrypted_roundtrip_overwrite_logout_and_failed_save() {
-        let dir = temp_dir(); let store = SessionStore::new(); store.bind(dir.clone()).unwrap();
+        let dir = temp_dir();
+        std::fs::write(dir.join("session.dat"), b"corrupt ciphertext").unwrap();
+        let store = SessionStore::new(); store.bind(dir.clone()).unwrap();
+        assert_eq!(store.token("https://huangguoai.com"), None);
         let origin = "https://huangguoai.com";
         store.set(origin, "private-token-one".into(), json!({"id":1})).unwrap();
         let disk = std::fs::read(dir.join("session.dat")).unwrap();
