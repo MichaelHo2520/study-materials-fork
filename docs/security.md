@@ -1,5 +1,7 @@
 # 客户端内容与网络安全
 
+> 本文保留原專案歷史紀錄。本個人分支的最新變更與限制以 [personal-hardening.md](personal-hardening.md) 為準；其中明文 token、媒體容量及一般日誌容量問題已修正，嚴格模式亦拒絕 `Origin: null`。
+
 ## 本次加固的行为
 
 - 文章正文通过固定版本 DOMPurify 清洗，并且将 `DOMPurify.sanitize` 作为进入 `dangerouslySetInnerHTML` 前的最终步骤（幂等处理代理图片，避免二次解析差异）。严格模式下只保留必要的 HTML 排版、链接和图片，SVG、MathML、脚本、事件属性、内联样式、非 HTTP(S) URL 及本机/内网主机名均不进入页面；正文容器统一拦截 `<a>` 点击并交由外部打开或复制，防止 WebView 原地导航或弹出无守卫新窗口。

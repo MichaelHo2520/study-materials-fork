@@ -3,7 +3,15 @@ name: Personal Windows and Android build
 on:
   workflow_dispatch:
   push:
-    branches: [fix/windows-hardening]
+    branches: [main, fix/windows-hardening]
+    paths:
+      - 'src/**'
+      - 'src-tauri/**'
+      - 'public/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'vite.config.ts'
+      - '.github/workflows/personal-build.yml'
 
 permissions:
   contents: read

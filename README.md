@@ -1,7 +1,10 @@
-<h1><span style="color: red;">转载来自：HGhub 源库，请点击小星星</span></h1>
+# HGhub 個人維護分支
+
+本分支由 MichaelHo2520 個人非商業使用，來源為 [AIRzZ90/study-materials-fork](https://github.com/AIRzZ90/study-materials-fork)，原始專案為 Minireel/HGhub。保留原授權與作者歸屬。
+
+本分支修正登入憑證保存、下載／快取容量、日誌輪替與更新來源；Windows 會話使用 DPAPI 加密，Android 僅保留當次登入。詳見[修正與驗證說明](docs/personal-hardening.md)。以下為原專案說明。
 
 # HGhub
-（FROK不点小星星的人=看黄果也打不出来-哈哈）
 
 **基于 Rust 与 Tauri 2 的跨平台界面与交互实践项目。**
 
