@@ -251,9 +251,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const clearSearchHist = useCallback(() => setP((s) => ({ ...s, searchHist: [] })), []);
 
   const logout = useCallback(async () => {
-    try { await api.logout(); } catch { /* ignore */ }
-    setUser(null);
-    toast("已退出登录", "info");
+    try {
+      await api.logout();
+      setUser(null);
+      toast("已退出登录", "info");
+    } catch {
+      toast("退出登录未完成，无法确认已清除保存的会话，请重试", "info");
+    }
   }, [toast]);
 
   const setTheater = useCallback((v: boolean | ((prev: boolean) => boolean)) => {

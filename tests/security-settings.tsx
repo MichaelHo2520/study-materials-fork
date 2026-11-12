@@ -15,7 +15,7 @@ function deferred<T>() {
 }
 const checks: string[] = [];
 function assert(ok: unknown, label: string) { if (!ok) throw new Error(label); checks.push(label); }
-const originalBoot = api.boot, originalSave = api.securitySet;
+const originalBoot = api.boot, originalSave = api.securitySet, originalLogout = api.logout;
 const previousLocal = localStorage.getItem("hghub_strict_security");
 const root = createRoot(document.querySelector("#fixture")!);
 try {
@@ -41,12 +41,19 @@ try {
   await act(async () => { try { await store!.setStrictSecurity(false); } catch { failed = true; } });
   assert(failed && store!.strictSecurity && isStrictSecurity() && !store!.securityPending, "failed save keeps backend-confirmed mode and reports failure");
   assert(localStorage.getItem("hghub_strict_security") === "0", "mode changes do not write a second persisted source");
+  await act(async () => store!.setUser({ id: 1, username: "fixture", nickname: "fixture", avatar: "", avatar_color: "" }));
+  api.logout = async () => { throw new Error("session delete failed"); };
+  await act(async () => store!.logout());
+  assert(store!.user?.id === 1 && store!.toasts.at(-1)?.msg.includes("退出登录未完成"), "failed session deletion is not reported as a successful logout");
+  api.logout = async () => ({ ok: true });
+  await act(async () => store!.logout());
+  assert(store!.user === null && store!.toasts.at(-1)?.msg === "已退出登录", "confirmed logout clears user state");
   document.querySelector("#results")!.textContent = JSON.stringify({ passed: checks.length, failed: 0, checks });
 } catch (error) {
   document.querySelector("#results")!.textContent = JSON.stringify({ passed: checks.length, failed: 1, error: String(error), checks });
 } finally {
   await act(async () => root.unmount());
-  api.boot = originalBoot; api.securitySet = originalSave;
+  api.boot = originalBoot; api.securitySet = originalSave; api.logout = originalLogout;
   setStrictSecurity(true);
   if (previousLocal === null) localStorage.removeItem("hghub_strict_security");
   else localStorage.setItem("hghub_strict_security", previousLocal);
