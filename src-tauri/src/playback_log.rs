@@ -46,21 +46,21 @@ pub fn resource_id(raw: &str) -> String {
 }
 
 pub fn error_kind(error: &str) -> &'static str {
-    if error.contains("禁止") || error.contains("只允许") || error.contains("控制字符") {
-        if error.contains("降级") {
+    if error.contains("禁止") || error.contains("只允許") || error.contains("控制字元") {
+        if error.contains("降級") {
             "https_downgrade_denied"
-        } else if error.contains("内网") || error.contains("保留地址") {
+        } else if error.contains("內網") || error.contains("保留地址") {
             "private_address_denied"
         } else {
             "target_policy_denied"
         }
     } else if error.contains("DNS") {
         "dns_error"
-    } else if error.contains("超时") || error.to_ascii_lowercase().contains("timeout") {
+    } else if error.contains("超時") || error.to_ascii_lowercase().contains("timeout") {
         "timeout"
     } else if error.starts_with("HTTP ") {
         "http_error"
-    } else if error.contains("重定向") {
+    } else if error.contains("重新導向") {
         "redirect_error"
     } else {
         "transport_error"
@@ -126,17 +126,17 @@ impl Journal {
     }
 
     fn append(&mut self, event: &str, data: Value, limit: u64) -> Result<(), String> {
-        let dir = self.dir.as_ref().ok_or("日志目录尚未初始化")?;
+        let dir = self.dir.as_ref().ok_or("日誌目錄尚未初始化")?;
         let path = dir.join("playback.log");
         let ts = crate::logging::utc_timestamp()?;
         let line = json!({ "ts": ts, "pid": std::process::id(), "seq": SEQ.fetch_add(1, Ordering::Relaxed), "event": event, "strict": crate::network_policy::strict_security(), "data": scrub(&data, 0) }).to_string() + "\n";
         if fs::metadata(&path).map(|m| m.len()).unwrap_or(0) + line.len() as u64 > limit {
             let previous = dir.join("playback.previous.log");
             if previous.exists() {
-                fs::remove_file(&previous).map_err(|_| "无法轮转诊断日志")?;
+                fs::remove_file(&previous).map_err(|_| "無法輪轉診斷日誌")?;
             }
             if path.exists() {
-                fs::rename(&path, previous).map_err(|_| "无法轮转诊断日志")?;
+                fs::rename(&path, previous).map_err(|_| "無法輪轉診斷日誌")?;
             }
         }
         OpenOptions::new()
@@ -144,22 +144,22 @@ impl Journal {
             .append(true)
             .open(path)
             .and_then(|mut f| f.write_all(line.as_bytes()))
-            .map_err(|_| "无法写入诊断日志".to_string())
+            .map_err(|_| "無法寫入診斷日誌".to_string())
     }
 
     fn set(&mut self, on: bool) -> Result<(), String> {
-        let dir = self.dir.as_ref().ok_or("日志目录尚未初始化")?;
+        let dir = self.dir.as_ref().ok_or("日誌目錄尚未初始化")?;
         if on {
             OpenOptions::new()
                 .create(true)
                 .append(true)
                 .open(dir.join("playback.log"))
-                .map_err(|_| "无法创建诊断日志")?;
+                .map_err(|_| "無法建立診斷日誌")?;
         }
         let temp = dir.join("playback-diagnostics.json.tmp");
         fs::write(&temp, json!({"enabled": on}).to_string())
             .and_then(|_| fs::rename(&temp, dir.join("playback-diagnostics.json")))
-            .map_err(|_| "无法保存日志开关")?;
+            .map_err(|_| "無法儲存日誌開關")?;
         self.enabled = on;
         self.error = None;
         if let Err(e) = self.append("diagnostics.toggle", json!({"enabled": on, "version": env!("CARGO_PKG_VERSION"), "os": std::env::consts::OS}), MAX_FILE) { self.error = Some(e); }
@@ -203,12 +203,12 @@ pub fn record(event: &str, data: Value) {
 
 #[tauri::command]
 pub fn playback_log_status() -> Result<Status, String> {
-    Ok(LOG.lock().map_err(|_| "日志锁失败")?.status())
+    Ok(LOG.lock().map_err(|_| "日誌鎖失敗")?.status())
 }
 
 #[tauri::command]
 pub fn playback_log_set(enabled: bool) -> Result<Status, String> {
-    let mut log = LOG.lock().map_err(|_| "日志锁失败")?;
+    let mut log = LOG.lock().map_err(|_| "日誌鎖失敗")?;
     let result = log.set(enabled);
     ENABLED.store(log.enabled, Ordering::Relaxed);
     result?;
@@ -221,9 +221,9 @@ pub fn playback_log_write(entries: Vec<Entry>) -> Result<(), String> {
         return Ok(());
     }
     if entries.len() > 128 {
-        return Err("日志批次过大".into());
+        return Err("日誌批次過大".into());
     }
-    let mut log = LOG.lock().map_err(|_| "日志锁失败")?;
+    let mut log = LOG.lock().map_err(|_| "日誌鎖失敗")?;
     if !log.enabled {
         return Ok(());
     }
@@ -235,7 +235,7 @@ pub fn playback_log_write(entries: Vec<Entry>) -> Result<(), String> {
                 .all(|c| c.is_ascii_alphanumeric() || b"._-".contains(&c))
             || entry.data.to_string().len() > 8192
         {
-            return Err("日志条目无效".into());
+            return Err("日誌條目無效".into());
         }
         log.append(&format!("web.{}", entry.event), entry.data, MAX_FILE)?;
     }
@@ -244,16 +244,16 @@ pub fn playback_log_write(entries: Vec<Entry>) -> Result<(), String> {
 
 #[tauri::command]
 pub fn playback_log_read() -> Result<String, String> {
-    let log = LOG.lock().map_err(|_| "日志锁失败")?;
-    let dir = log.dir.as_ref().ok_or("日志目录尚未初始化")?;
+    let log = LOG.lock().map_err(|_| "日誌鎖失敗")?;
+    let dir = log.dir.as_ref().ok_or("日誌目錄尚未初始化")?;
     let mut text = String::new();
     for name in ["playback.previous.log", "playback.log"] {
         let path = dir.join(name);
         if path.exists() {
-            if fs::metadata(&path).map_err(|_| "无法读取日志")?.len() > MAX_FILE + 16384 {
-                return Err("日志文件超出大小限制".into());
+            if fs::metadata(&path).map_err(|_| "無法讀取日誌")?.len() > MAX_FILE + 16384 {
+                return Err("日誌檔案超出大小限制".into());
             }
-            text.push_str(&fs::read_to_string(path).map_err(|_| "无法读取日志")?);
+            text.push_str(&fs::read_to_string(path).map_err(|_| "無法讀取日誌")?);
         }
     }
     Ok(text)

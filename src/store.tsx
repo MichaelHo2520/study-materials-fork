@@ -20,6 +20,8 @@ export type FeedContext = {
   /** 从观看记录续播：起始集数与秒数 */
   startEp?: number;
   startTime?: number;
+  /** 单部剧集模式：videoIds 只有一部，上下滑动切换集数 */
+  series?: boolean;
 };
 
 export type Page =
@@ -31,7 +33,7 @@ export type Page =
   | { kind: "post"; key: string; id: number };
 
 export type PageInput =
-  | { kind: "feed"; videoIds: number[]; index: number; title: string; source?: string; feedKind?: "video" | "post"; startEp?: number; startTime?: number }
+  | { kind: "feed"; videoIds: number[]; index: number; title: string; source?: string; feedKind?: "video" | "post"; startEp?: number; startTime?: number; series?: boolean }
   | { kind: "channel"; cate: string; name: string }
   | { kind: "ranks" }
   | { kind: "settings" }
@@ -186,7 +188,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setStrictSecurity = useCallback(async (on: boolean) => {
-    if (!strictSecurityReady) throw new Error("安全设置尚未读取，请重新启动应用");
+    if (!strictSecurityReady) throw new Error("安全設定尚未讀取，請重新啟動應用");
     setSecurityPending(true);
     try {
       const saved = await api.securitySet(on);
@@ -264,9 +266,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       await api.logout();
       setUser(null);
-      toast("已退出登录", "info");
+      toast("已登出", "info");
     } catch {
-      toast("退出登录未完成，无法确认已清除保存的会话，请重试", "info");
+      toast("登出未完成，無法確認已清除儲存的會話，請重試", "info");
     }
   }, [toast]);
 

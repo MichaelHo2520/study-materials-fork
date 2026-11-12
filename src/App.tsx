@@ -9,6 +9,7 @@ import Category, { ChannelPage } from "./pages/Category";
 import Profile from "./pages/Profile";
 import SettingsPage from "./pages/Settings";
 import Feed from "./components/Feed";
+import SeriesFeed from "./components/SeriesFeed";
 import { PostsPage, PostDetail } from "./pages/Posts";
 import LoginModal from "./components/LoginModal";
 import { ToastHost } from "./components/ui";
@@ -21,9 +22,9 @@ import { IGrid, IGridF, IHome, IHomeF, ISearch, IUser, IUserF, Logo } from "./ic
 function TabBar() {
   const { tab, setTab, theme } = useStore();
   const items: { k: Tab; label: string }[] = [
-    { k: "home", label: "首页" },
-    { k: "search", label: "搜索" },
-    { k: "category", label: "分类" },
+    { k: "home", label: "首頁" },
+    { k: "search", label: "搜尋" },
+    { k: "category", label: "分類" },
     { k: "profile", label: "我的" },
   ];
   /* 细瘦纯文字分栏：只有选中项高亮，没有指示点。
@@ -65,6 +66,12 @@ function TabBar() {
 function StackPage({ page, onBack, wide, top, bottomInset }: {
   page: Page; onBack: () => void; wide: boolean; top: boolean; bottomInset: number;
 }) {
+  if (page.kind === "feed" && page.series) {
+    return (
+      <SeriesFeed id={page.videoIds[0]} title={page.title} startEp={page.startEp} startTime={page.startTime}
+        active={top} bottomInset={bottomInset} onBack={onBack} />
+    );
+  }
   if (page.kind === "feed") {
     return (
       <Feed videoIds={page.videoIds} startIndex={page.index} title={page.title} kind={page.feedKind || "video"}

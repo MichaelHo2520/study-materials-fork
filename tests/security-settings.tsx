@@ -44,10 +44,10 @@ try {
   await act(async () => store!.setUser({ id: 1, username: "fixture", nickname: "fixture", avatar: "", avatar_color: "" }));
   api.logout = async () => { throw new Error("session delete failed"); };
   await act(async () => store!.logout());
-  assert(store!.user?.id === 1 && store!.toasts.at(-1)?.msg.includes("退出登录未完成"), "failed session deletion is not reported as a successful logout");
+  assert(store!.user?.id === 1 && store!.toasts.at(-1)?.msg.includes("登出未完成"), "failed session deletion is not reported as a successful logout");
   api.logout = async () => ({ ok: true });
   await act(async () => store!.logout());
-  assert(store!.user === null && store!.toasts.at(-1)?.msg === "已退出登录", "confirmed logout clears user state");
+  assert(store!.user === null && store!.toasts.at(-1)?.msg === "已登出", "confirmed logout clears user state");
   document.querySelector("#results")!.textContent = JSON.stringify({ passed: checks.length, failed: 0, checks });
 } catch (error) {
   document.querySelector("#results")!.textContent = JSON.stringify({ passed: checks.length, failed: 1, error: String(error), checks });

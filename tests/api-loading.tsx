@@ -22,7 +22,7 @@ const fixture = {
     }
     request.resolve({
       items: result === "empty" ? [] : [{
-        id: 991, title: `已加载${key || cmd}`, cover: "", tags: [], score: 0, hot: 0,
+        id: 991, title: `已載入${key || cmd}`, cover: "", tags: [], score: 0, hot: 0,
         episode_count: 1, total_episodes: 1, is_finished: true, is_original: 0,
         like_count: 0, comment_count: 0, collect_count: 0,
       }],

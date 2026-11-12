@@ -21,13 +21,13 @@ const src = join(root, "src-tauri", "icons", "android");
 const dest = join(root, "src-tauri", "gen", "android", "app", "src", "main", "res");
 
 if (!existsSync(src)) {
-  console.log(`[icons] 跳过：缺少 ${src}`);
+  console.log(`[icons] 跳過：缺少 ${src}`);
   process.exit(0);
 }
 if (!existsSync(dest)) {
-  console.log("[icons] 跳过：gen/android 还没生成（先跑 tauri android init）");
+  console.log("[icons] 跳過：gen/android 還沒生成（先跑 tauri android init）");
   process.exit(0);
 }
 
 cpSync(src, dest, { recursive: true, force: true });
-console.log(`[icons] 安卓图标已同步 → ${dest}`);
+console.log(`[icons] 安卓圖示已同步 → ${dest}`);

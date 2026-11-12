@@ -35,7 +35,7 @@ impl Api {
         let token = self
             .session
             .token(&origin)
-            .ok_or_else(|| "请先登录".to_string())?;
+            .ok_or_else(|| "請先登入".to_string())?;
         edge(&origin, method, path, body, Some(&token)).await
     }
 }
@@ -139,11 +139,11 @@ pub async fn check_update() -> Result<Value, String> {
         }));
     }
     if !status.is_success() {
-        return Err(format!("GitHub 返回 HTTP {status}"));
+        return Err(format!("GitHub 回傳 HTTP {status}"));
     }
 
     let bytes = crate::net::read_limited(resp, 2 * 1024 * 1024).await?;
-    let v: Value = serde_json::from_slice(&bytes).map_err(|_| "更新资料格式无效")?;
+    let v: Value = serde_json::from_slice(&bytes).map_err(|_| "更新資料格式無效")?;
     let tag = v
         .get("tag_name")
         .and_then(|x| x.as_str())
@@ -330,11 +330,11 @@ pub async fn api_login(
     let token = data
         .get("token")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| "登录返回缺少 token".to_string())?
+        .ok_or_else(|| "登入回傳缺少 token".to_string())?
         .to_string();
     let user = data.get("user").cloned().unwrap_or(Value::Null);
     if base() != origin {
-        return Err("登录期间线路已变化，请重新登录".into());
+        return Err("登入期間線路已變化，請重新登入".into());
     }
     state.session.set(&origin, token, user.clone())?;
     Ok(json!({ "user": user }))
@@ -367,11 +367,11 @@ pub async fn api_register(
     let token = data
         .get("token")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| "注册返回缺少 token".to_string())?
+        .ok_or_else(|| "註冊回傳缺少 token".to_string())?
         .to_string();
     let user = data.get("user").cloned().unwrap_or(Value::Null);
     if base() != origin {
-        return Err("注册期间线路已变化，请重新登录".into());
+        return Err("註冊期間線路已變化，請重新登入".into());
     }
     state.session.set(&origin, token, user.clone())?;
     Ok(json!({ "user": user }))
@@ -399,7 +399,7 @@ pub async fn api_me(state: State<'_, Api>) -> Result<Value, String> {
     let token = state.session.token(&origin);
     let me = edge(&origin, "GET", "/api/account/me", None, token.as_deref()).await?;
     if base() != origin {
-        return Err("读取账号期间线路已变化".into());
+        return Err("讀取帳號期間線路已變化".into());
     }
     if let Some(token) = state.session.token(&origin) {
         state.session.set(&origin, token, me.clone())?;

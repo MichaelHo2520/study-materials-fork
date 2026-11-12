@@ -148,7 +148,7 @@ pub async fn load_image(url: &str) -> Result<(String, Arc<Vec<u8>>), String> {
     let plain = if image_kind(&bytes).is_some() {
         bytes
     } else {
-        let dec = aes_cbc_decrypt(&bytes).ok_or_else(|| "封面解密失败".to_string())?;
+        let dec = aes_cbc_decrypt(&bytes).ok_or_else(|| "封面解密失敗".to_string())?;
         strip_padding(dec)
     };
     let kind = image_kind(&plain).unwrap_or("image/jpeg").to_string();
@@ -233,9 +233,9 @@ pub async fn load_playlist(url: &str, prefix: &str) -> Result<Arc<String>, Strin
         return Ok(hit);
     }
     let (_, bytes) = fetch_bytes_limited(url, 2 * 1024 * 1024).await?;
-    let text = std::str::from_utf8(&bytes).map_err(|_| "播放列表不是 UTF-8 文本")?;
+    let text = std::str::from_utf8(&bytes).map_err(|_| "播放列表不是 UTF-8 文字")?;
     if !text.trim_start_matches('\u{feff}').starts_with("#EXTM3U") {
-        return Err("响应不是 HLS 播放列表".into());
+        return Err("回應不是 HLS 播放列表".into());
     }
     let arc = Arc::new(rewrite_playlist(url, text, prefix)?);
     cache_put(&PL_CACHE, cache_key, arc.clone(), PL_CACHE_MAX, 8 * 1024 * 1024);
@@ -244,10 +244,10 @@ pub async fn load_playlist(url: &str, prefix: &str) -> Result<Arc<String>, Strin
 
 fn rewrite_playlist(url: &str, text: &str, prefix: &str) -> Result<String, String> {
     const MAX_OUTPUT: usize = 8 * 1024 * 1024;
-    if text.len() > 2 * 1024 * 1024 || url.len() > 8192 { return Err("播放列表超过大小限制".into()); }
+    if text.len() > 2 * 1024 * 1024 || url.len() > 8192 { return Err("播放列表超過大小限制".into()); }
     let mut out = String::with_capacity(text.len() + 512);
     for raw in text.trim_start_matches('\u{feff}').lines() {
-        if out.len() > MAX_OUTPUT || raw.len() > 16 * 1024 { return Err("播放列表超过大小限制".into()); }
+        if out.len() > MAX_OUTPUT || raw.len() > 16 * 1024 { return Err("播放列表超過大小限制".into()); }
         let line = raw.trim_end();
         if line.is_empty() {
             out.push('\n');
@@ -290,7 +290,7 @@ fn rewrite_playlist(url: &str, text: &str, prefix: &str) -> Result<String, Strin
         out.push('\n');
     }
 
-    if out.len() > MAX_OUTPUT { return Err("播放列表超过大小限制".into()); }
+    if out.len() > MAX_OUTPUT { return Err("播放列表超過大小限制".into()); }
     Ok(out)
 }
 
@@ -506,7 +506,7 @@ mod tests {
     /// 联网测试：默认跳过，手动跑 `cargo test --lib -- --ignored`。
     /// 依赖上游 `/api/videos/117/play` 返回的实时播放地址。
     #[tokio::test]
-    #[ignore = "联网测试：依赖上游实时播放地址，手动用 --ignored 运行"]
+    #[ignore = "連網測試：依賴上游即時播放地址，手動用 --ignored 執行"]
     async fn live_play_chain() {
         use crate::net::edge;
         let play = edge(
@@ -609,10 +609,10 @@ mod tests {
     /// 需要用当次上游返回的地址显式传入：
     /// `HGHUB_TEST_COVER_URL='https://…?auth_key=…' cargo test --lib -- --ignored`
     #[tokio::test]
-    #[ignore = "联网测试：需要 HGHUB_TEST_COVER_URL，手动用 --ignored 运行"]
+    #[ignore = "連網測試：需要 HGHUB_TEST_COVER_URL，手動用 --ignored 執行"]
     async fn cover_decrypt_works() {
         let url = std::env::var("HGHUB_TEST_COVER_URL")
-            .expect("需要设置 HGHUB_TEST_COVER_URL 为当前有效的封面地址");
+            .expect("需要設定 HGHUB_TEST_COVER_URL 為目前有效的封面地址");
         match load_image(&url).await {
             Ok((kind, bytes)) => {
                 println!("kind={kind} len={}", bytes.len());

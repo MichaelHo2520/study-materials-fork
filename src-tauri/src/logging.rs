@@ -12,7 +12,7 @@ const MAX_DEBUG_MESSAGE: usize = 16 * 1024;
 fn format_utc(at: OffsetDateTime) -> Result<String, String> {
     at.to_offset(UtcOffset::UTC)
         .format(&Rfc3339)
-        .map_err(|_| "日志时间格式错误".to_string())
+        .map_err(|_| "日誌時間格式錯誤".to_string())
 }
 
 pub(crate) fn utc_timestamp() -> Result<String, String> {
@@ -20,8 +20,8 @@ pub(crate) fn utc_timestamp() -> Result<String, String> {
 }
 
 pub(crate) fn append_debug(dir: &Path, message: &str) -> Result<(), String> {
-    let _writer = DEBUG_WRITER.lock().map_err(|_| "日志锁失败")?;
-    fs::create_dir_all(dir).map_err(|_| "无法创建日志目录")?;
+    let _writer = DEBUG_WRITER.lock().map_err(|_| "日誌鎖失敗")?;
+    fs::create_dir_all(dir).map_err(|_| "無法建立日誌目錄")?;
     let at = utc_timestamp()?;
     let prefix = format!("[{at}] [pid={}] ", std::process::id());
     let mut record = String::new();
@@ -40,15 +40,15 @@ pub(crate) fn append_debug(dir: &Path, message: &str) -> Result<(), String> {
     let path = dir.join("debug.log");
     if fs::metadata(&path).map(|m| m.len()).unwrap_or(0) + record.len() as u64 > MAX_DEBUG_FILE {
         let previous = dir.join("debug.previous.log");
-        if previous.exists() { fs::remove_file(&previous).map_err(|_| "无法轮替调试日志")?; }
-        fs::rename(&path, previous).map_err(|_| "无法轮替调试日志")?;
+        if previous.exists() { fs::remove_file(&previous).map_err(|_| "無法輪替除錯日誌")?; }
+        fs::rename(&path, previous).map_err(|_| "無法輪替除錯日誌")?;
     }
     OpenOptions::new()
         .create(true)
         .append(true)
         .open(path)
         .and_then(|mut f| f.write_all(record.as_bytes()))
-        .map_err(|_| "无法写入调试日志".to_string())
+        .map_err(|_| "無法寫入除錯日誌".to_string())
 }
 
 #[cfg(test)]

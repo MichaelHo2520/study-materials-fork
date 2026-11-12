@@ -88,7 +88,7 @@ pub fn bind_base(dir: &std::path::Path) {
 /// 切换线路并落盘，返回规整后的地址。
 pub fn set_base(url: &str) -> Result<String, String> {
     let next = normalize_base(url)
-        .ok_or_else(|| "线路地址无效（需要纯 HTTPS 站点地址，禁止内网）".to_string())?;
+        .ok_or_else(|| "線路地址無效（需要純 HTTPS 站點地址，禁止內網）".to_string())?;
     let previous = base();
     if let Ok(mut cur) = BASE.write() {
         *cur = next.clone();
@@ -140,12 +140,12 @@ fn build_client(host: &str, addrs: &[SocketAddr]) -> Result<reqwest::Client, Str
     }
     if let Some(p) = proxy_override() {
         // 错误信息不能含原始代理 URL（其中可能有用户名/密码）。
-        let proxy = reqwest::Proxy::all(&p).map_err(|_| "HGHUB_PROXY 配置无效（已隐藏原始值）")?;
+        let proxy = reqwest::Proxy::all(&p).map_err(|_| "HGHUB_PROXY 配置無效（已隱藏原始值）")?;
         builder = builder.proxy(proxy);
     }
     builder
         .build()
-        .map_err(|_| "无法创建 HTTP 客户端".to_string())
+        .map_err(|_| "無法建立 HTTP 用戶端".to_string())
 }
 
 const CLIENT_TTL: Duration = Duration::from_secs(30);
@@ -164,11 +164,11 @@ fn cached_client(cache: &ClientCache, key: &str, now: Instant) -> Option<Arc<req
 async fn client_for(raw: &str) -> Result<(url::Url, Arc<reqwest::Client>), String> {
     let strict = network_policy::strict_security();
     let target = network_policy::parse_target_with_mode(raw, strict)?;
-    let host = target.host_str().ok_or("目标缺少主机名")?;
-    let port = target.port_or_known_default().ok_or("目标端口无效")?;
+    let host = target.host_str().ok_or("目標缺少主機名")?;
+    let port = target.port_or_known_default().ok_or("目標埠無效")?;
     let key = format!("{strict}:{host}:{port}");
     {
-        let cache = CLIENTS.lock().map_err(|_| "HTTP 客户端锁失败")?;
+        let cache = CLIENTS.lock().map_err(|_| "HTTP 用戶端鎖失敗")?;
         if let Some(http) = cached_client(&cache, &key, Instant::now()) {
             return Ok((target, http));
         }
@@ -180,7 +180,7 @@ async fn client_for(raw: &str) -> Result<(url::Url, Arc<reqwest::Client>), Strin
     };
     let http = Arc::new(build_client(host, &addrs)?);
     let now = Instant::now();
-    let mut cache = CLIENTS.lock().map_err(|_| "HTTP 客户端锁失败")?;
+    let mut cache = CLIENTS.lock().map_err(|_| "HTTP 用戶端鎖失敗")?;
     // 同时到达的请求可能已完成解析；不延长已有结果的有效期。
     let http = cached_client(&cache, &key, now).unwrap_or(http);
     if !cache.get(&key).is_some_and(|(expires, _)| now < *expires) {
@@ -228,20 +228,20 @@ pub async fn get(
                 return Ok(response);
             }
             if hop == 5 {
-                return Err("重定向次数超过限制".into());
+                return Err("重新導向次數超過限制".into());
             }
             let location = response
                 .headers()
                 .get(reqwest::header::LOCATION)
                 .and_then(|h| h.to_str().ok())
-                .ok_or("重定向缺少有效 Location")?;
+                .ok_or("重新導向缺少有效 Location")?;
             next = network_policy::redirect_target(&target, location).map_err(|e| policy_error("redirect", e))?;
             crate::playback_log::record("network.redirect", json!({"resource": crate::playback_log::resource_id(raw), "from": crate::playback_log::resource_id(target.as_str()), "to": crate::playback_log::resource_id(next.as_str()), "status": response.status().as_u16(), "hop": hop + 1}));
         }
-        Err("重定向次数超过限制".into())
+        Err("重新導向次數超過限制".into())
     })
     .await
-    .map_err(|_| "请求超时".to_string())?
+    .map_err(|_| "請求超時".to_string())?
 }
 
 /// 只返回代理的协议/主机/端口；解析失败时隐藏整个值，绝不回传认证或查询参数。
@@ -257,7 +257,7 @@ pub fn redact_proxy(raw: &str) -> String {
             }
             safe
         }
-        None => "[已配置，原始值已隐藏]".into(),
+        None => "[已配置，原始值已隱藏]".into(),
     }
 }
 
@@ -343,7 +343,7 @@ pub async fn diagnose() -> Value {
             use std::net::ToSocketAddrs;
             match (host.as_str(), 443u16).to_socket_addrs() {
                 Ok(iter) => dns_summary(iter),
-                Err(_) => json!({ "error": "DNS 解析失败" }),
+                Err(_) => json!({ "error": "DNS 解析失敗" }),
             }
         })
         .await
@@ -371,14 +371,14 @@ pub async fn diagnose() -> Value {
             "HTTP_PROXY": std::env::var("HTTP_PROXY").ok().map(|p| redact_proxy(&p)),
             "HTTPS_PROXY": std::env::var("HTTPS_PROXY").ok().map(|p| redact_proxy(&p)),
             "ALL_PROXY": std::env::var("ALL_PROXY").ok().map(|p| redact_proxy(&p)),
-            "NO_PROXY": std::env::var("NO_PROXY").ok().map(|_| "[已配置，列表已隐藏]"),
+            "NO_PROXY": std::env::var("NO_PROXY").ok().map(|_| "[已配置，列表已隱藏]"),
             "HGHUB_PROXY": proxy_override().map(|p| redact_proxy(&p)),
         },
     })
 }
 
 fn retryable_error(error: &str) -> bool {
-    if error == "响应内容超过大小限制" || error == "媒体请求繁忙，请稍后重试" {
+    if error == "回應內容超過大小限制" || error == "媒體請求繁忙，請稍後重試" {
         return false;
     }
     if error == "401" {
@@ -462,7 +462,7 @@ fn edge_redirect_target(
     guest_get: bool,
 ) -> Result<url::Url, String> {
     if !guest_get || !matches!(status, 301 | 302 | 303) {
-        return Err("业务接口重定向已拒绝".into());
+        return Err("業務介面重新導向已拒絕".into());
     }
     network_policy::redirect_target(current, location)
 }
@@ -475,7 +475,7 @@ pub async fn edge(
     body: Option<Value>,
     token: Option<&str>,
 ) -> Result<Value, String> {
-    let cur = normalize_base(origin).ok_or("业务请求必须使用安全 HTTPS 线路")?;
+    let cur = normalize_base(origin).ok_or("業務請求必須使用安全 HTTPS 線路")?;
     if network_policy::strict_security()
         && (token.is_some()
             || matches!(
@@ -484,7 +484,7 @@ pub async fn edge(
             ))
         && !trusted_auth_origin(&cur)
     {
-        return Err("镜像线路仅供游客浏览；登录/注册请切换到固定线路".into());
+        return Err("鏡像線路僅供遊客瀏覽；登入/註冊請切換到固定線路".into());
     }
     let (encoded, ctype) = match &body {
         Some(v) => (
@@ -558,13 +558,13 @@ pub async fn edge(
                     // 逐跳重建并检查客户端；不自动把信封 POST 改成无信封 GET。
                     if status.is_redirection() {
                         if hop == 5 {
-                            return Err("重定向次数超过限制".into());
+                            return Err("重新導向次數超過限制".into());
                         }
                         let location = resp
                             .headers()
                             .get(reqwest::header::LOCATION)
                             .and_then(|h| h.to_str().ok())
-                            .ok_or("重定向缺少有效 Location")?;
+                            .ok_or("重新導向缺少有效 Location")?;
                         next = edge_redirect_target(&target, status.as_u16(), location, guest_get)?;
                         continue;
                     }
@@ -585,7 +585,7 @@ pub async fn edge(
                     return serde_json::from_str::<Value>(&text)
                         .map_err(|e| format!("{e}: {}", text.chars().take(160).collect::<String>()));
                 }
-                Err("重定向次数超过限制".into())
+                Err("重新導向次數超過限制".into())
             }.await;
             crate::playback_log::record("api.end", json!({
                 "request": request, "attempt": attempt, "operation": operation, "method": method,
@@ -612,7 +612,7 @@ pub async fn edge(
             .get("msg")
             .and_then(|v| v.as_str())
             .filter(|s| !s.is_empty())
-            .unwrap_or("接口返回失败")
+            .unwrap_or("介面回傳失敗")
             .to_string())
     }
 }
@@ -623,7 +623,7 @@ pub async fn fetch_bytes(url: &str) -> Result<(Option<String>, Vec<u8>), String>
 }
 
 pub async fn read_limited(mut response: reqwest::Response, max: usize) -> Result<Vec<u8>, String> {
-    const TOO_LARGE: &str = "响应内容超过大小限制";
+    const TOO_LARGE: &str = "回應內容超過大小限制";
     if response.content_length().is_some_and(|n| n > max as u64) {
         return Err(TOO_LARGE.into());
     }
@@ -639,8 +639,8 @@ pub async fn read_limited(mut response: reqwest::Response, max: usize) -> Result
 pub async fn fetch_bytes_limited(url: &str, max: usize) -> Result<(Option<String>, Vec<u8>), String> {
     static MEDIA_SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(4);
     let _slot = tokio::time::timeout(Duration::from_secs(20), MEDIA_SLOTS.acquire()).await
-        .map_err(|_| "媒体请求繁忙，请稍后重试")?
-        .map_err(|_| "媒体请求繁忙，请稍后重试")?;
+        .map_err(|_| "媒體請求繁忙，請稍後重試")?
+        .map_err(|_| "媒體請求繁忙，請稍後重試")?;
     static NEXT_REQUEST: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let request = NEXT_REQUEST.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let resource = crate::playback_log::resource_id(url);
@@ -703,17 +703,17 @@ mod tests {
     #[tokio::test]
     async fn response_limit_handles_declared_chunked_and_exact_sizes() {
         let response = fixture_response(b"HTTP/1.1 200 OK\r\nContent-Length: 1000000\r\nConnection: close\r\n\r\n").await;
-        assert_eq!(read_limited(response, 8).await.unwrap_err(), "响应内容超过大小限制");
+        assert_eq!(read_limited(response, 8).await.unwrap_err(), "回應內容超過大小限制");
         let response = fixture_response(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n4\r\nabcd\r\n5\r\nefghi\r\n0\r\n\r\n").await;
-        assert_eq!(read_limited(response, 8).await.unwrap_err(), "响应内容超过大小限制");
+        assert_eq!(read_limited(response, 8).await.unwrap_err(), "回應內容超過大小限制");
         let response = fixture_response(b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nConnection: close\r\n\r\nabcdefgh").await;
         assert_eq!(read_limited(response, 8).await.unwrap(), b"abcdefgh");
         let compressed = B64.decode("H4sIAAAAAAACCnN0HAWjYBSMVAAAGvs3twAEAAA=").unwrap();
         let mut raw = format!("HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", compressed.len()).into_bytes();
         raw.extend(compressed);
         let response = fixture_response(&raw).await;
-        assert_eq!(read_limited(response, 128).await.unwrap_err(), "响应内容超过大小限制");
-        assert!(!retryable_error("响应内容超过大小限制"));
+        assert_eq!(read_limited(response, 128).await.unwrap_err(), "回應內容超過大小限制");
+        assert!(!retryable_error("回應內容超過大小限制"));
     }
 
     #[tokio::test]
@@ -723,8 +723,8 @@ mod tests {
             "HTTP 404 Not Found: <html>nginx</html>",
             "HTTP 403 Forbidden",
             "401",
-            "禁止访问内网",
-            "重定向次数超过限制",
+            "禁止訪問內網",
+            "重新導向次數超過限制",
         ] {
             let calls = AtomicUsize::new(0);
             assert!(with_retry(true, || async {
@@ -735,7 +735,7 @@ mod tests {
             .is_err());
             assert_eq!(calls.load(Ordering::SeqCst), 1, "{error}");
         }
-        for error in ["HTTP 503 Service Unavailable", "请求超时"] {
+        for error in ["HTTP 503 Service Unavailable", "請求超時"] {
             let calls = AtomicUsize::new(0);
             let value = with_retry(true, || {
                 let attempt = calls.fetch_add(1, Ordering::SeqCst);
@@ -859,7 +859,7 @@ mod tests {
             "socks5://[::1]:1080"
         );
         for raw in ["alice:secret@127.0.0.1:7897", "not a url secret", ""] {
-            assert_eq!(redact_proxy(raw), "[已配置，原始值已隐藏]");
+            assert_eq!(redact_proxy(raw), "[已配置，原始值已隱藏]");
         }
     }
 
@@ -903,7 +903,7 @@ mod tests {
             let err = edge("https://mirror.invalid", "POST", path, body, token)
                 .await
                 .unwrap_err();
-            assert!(err.contains("镜像线路仅供游客浏览"));
+            assert!(err.contains("鏡像線路僅供遊客瀏覽"));
         }
     }
 
@@ -917,13 +917,13 @@ mod tests {
         )
         .await
         .unwrap_err();
-        assert!(err.contains("禁止访问"));
+        assert!(err.contains("禁止訪問"));
     }
 
     /// 手动跑：`cargo test --lib -- --ignored net::tests::diag -- --nocapture`
     /// 关掉 TUN、只留系统代理时跑一遍，能直接看出客户端有没有走代理。
     #[tokio::test]
-    #[ignore = "联网测试：请求上游做网络自检，手动用 --ignored 运行"]
+    #[ignore = "連網測試：請求上游做網路自檢，手動用 --ignored 執行"]
     async fn diag() {
         println!(
             "{}",

@@ -47,12 +47,12 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
   try {
     return (await invoke(cmd, args)) as T;
   } catch (e) {
-    const msg = typeof e === "string" ? e : "请求失败，请检查网络";
+    const msg = typeof e === "string" ? e : "請求失敗，請檢查網路";
     // 落盘完整错误链（dns error / connection refused / 证书错误…），toast 只显示截断版
     logLine(`[api] ${cmd} → ${msg}`);
     const status = /^HTTP (\d{3})\b/.exec(msg)?.[1];
     if (status) {
-      throw new Error(`服务器请求失败（HTTP ${status}），请稍后重试或在设置中切换线路`);
+      throw new Error(`伺服器請求失敗（HTTP ${status}），請稍後重試或在設定中切換線路`);
     }
     throw new Error(msg.length > 140 ? `${msg.slice(0, 140)}…` : msg);
   }
@@ -191,8 +191,8 @@ export async function selfTest(): Promise<string> {
 
 export const fmt = (n: number | undefined) => {
   const v = Number(n) || 0;
-  if (v >= 100_000_000) return `${(v / 100_000_000).toFixed(1).replace(/\.0$/, "")}亿`;
-  if (v >= 10_000) return `${(v / 10_000).toFixed(1).replace(/\.0$/, "")}万`;
+  if (v >= 100_000_000) return `${(v / 100_000_000).toFixed(1).replace(/\.0$/, "")}億`;
+  if (v >= 10_000) return `${(v / 10_000).toFixed(1).replace(/\.0$/, "")}萬`;
   return String(v);
 };
 

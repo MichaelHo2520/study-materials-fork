@@ -35,7 +35,7 @@ const clock = (s: number) => fmtTime(Math.max(0, s || 0)).padStart(5, "0");
 
 export default function PlayerControls({
   paused, time, duration, buffered = 0, rate, muted, volume, theater = false, fullscreen = false,
-  visible = true, seekEnabled = true, seekKey, nextDisabled = false, nextTitle = "下一个", onToggle, onSeek, onSeekInteraction, onRate, onMute, onVolume, onPip, onLock, onTheater, onFullscreen, onNext,
+  visible = true, seekEnabled = true, seekKey, nextDisabled = false, nextTitle = "下一個", onToggle, onSeek, onSeekInteraction, onRate, onMute, onVolume, onPip, onLock, onTheater, onFullscreen, onNext,
 }: Props) {
   const [speedOpen, setSpeedOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -58,11 +58,11 @@ export default function PlayerControls({
           <span className="desktop-seek-buffer" style={{ width: `${Math.min(1, buffered) * 100}%` }} />
           <span className="desktop-seek-played" style={{ width: `${pct}%` }} />
         </div>
-        <input aria-label="播放进度" type="range" {...seek.inputProps} />
+        <input aria-label="播放進度" type="range" {...seek.inputProps} />
       </div>
 
       <div className="desktop-control-row">
-        <button className="player-control primary-play" aria-label={paused ? "播放" : "暂停"} data-tooltip={paused ? "播放 Space" : "暂停 Space"} onClick={onToggle}>
+        <button className="player-control primary-play" aria-label={paused ? "播放" : "暫停"} data-tooltip={paused ? "播放 Space" : "暫停 Space"} onClick={onToggle}>
           {paused ? <IPlayF size={19} /> : <IPauseF size={18} />}
         </button>
         {onNext && (
@@ -89,7 +89,7 @@ export default function PlayerControls({
           )}
         </div>
         <div className="player-volume">
-          <button className="player-control" aria-label={muted ? "开启声音" : "静音"} data-tooltip="静音 M" onClick={onMute}>
+          <button className="player-control" aria-label={muted ? "開啟聲音" : "靜音"} data-tooltip="靜音 M" onClick={onMute}>
             {muted || volume === 0 ? <IVolMute size={20} strokeWidth={1.6} /> : <IVol size={20} strokeWidth={1.6} />}
           </button>
           <div className="player-volume-slider">
@@ -98,13 +98,13 @@ export default function PlayerControls({
               onChange={(e) => onVolume(Number(e.target.value))} />
           </div>
         </div>
-        <button className="player-control" aria-label="画中画" data-tooltip="画中画" onClick={onPip}><IPip size={20} strokeWidth={1.6} /></button>
-        <button className="player-control" aria-label="锁定播放控制" aria-pressed={false} data-tooltip="锁定播放控制" onClick={onLock}><ILockF size={18} /></button>
+        <button className="player-control" aria-label="畫中畫" data-tooltip="畫中畫" onClick={onPip}><IPip size={20} strokeWidth={1.6} /></button>
+        <button className="player-control" aria-label="鎖定播放控制" aria-pressed={false} data-tooltip="鎖定播放控制" onClick={onLock}><ILockF size={18} /></button>
         {!fullscreen && onTheater && (
           <button className={`player-control ${theater ? "is-on" : ""}`} aria-label="影院模式" aria-pressed={theater}
             data-tooltip="影院模式 T" onClick={onTheater}><ITheater size={20} strokeWidth={1.6} /></button>
         )}
-        <button className="player-control" aria-label={fullscreen ? "退出全屏" : "全屏"} data-tooltip={fullscreen ? "退出全屏 Esc" : "全屏 F"} onClick={onFullscreen}>
+        <button className="player-control" aria-label={fullscreen ? "退出全螢幕" : "全螢幕"} data-tooltip={fullscreen ? "退出全螢幕 Esc" : "全螢幕 F"} onClick={onFullscreen}>
           {fullscreen ? <ICompress size={19} strokeWidth={1.6} /> : <IExpand size={19} strokeWidth={1.6} />}
         </button>
       </div>

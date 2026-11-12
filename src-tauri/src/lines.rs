@@ -9,8 +9,8 @@ use std::time::{Duration, Instant};
 
 /// 固定线路：写死在客户端里，不依赖任何外部页面。
 pub const FIXED: [(&str, &str); 2] = [
-    ("固定线路 1", "https://huangguoai.com"),
-    ("固定线路 2", "https://huangguoai.ai"),
+    ("固定線路 1", "https://huangguoai.com"),
+    ("固定線路 2", "https://huangguoai.ai"),
 ];
 
 const PUBLISH_PAGE: &str = "https://huangguoai.pages.dev/";
@@ -36,7 +36,7 @@ pub async fn mirrors() -> Result<Value, String> {
     let domains = js_array(&js, "var urls");
     let subs = js_array(&js, "var subdomains");
     if domains.is_empty() {
-        return Err("地址发布页格式有变化：没找到镜像域名".to_string());
+        return Err("地址發布頁格式有變化：沒找到鏡像域名".to_string());
     }
 
     let mut items: Vec<Value> = Vec::new();
@@ -62,7 +62,7 @@ pub async fn mirrors() -> Result<Value, String> {
         }
     }
     if items.is_empty() {
-        return Err("地址发布页里没有可用的镜像地址".to_string());
+        return Err("地址發布頁裡沒有可用的鏡像地址".to_string());
     }
 
     Ok(json!({ "source": PUBLISH_PAGE, "script": js_url, "items": items }))
@@ -112,7 +112,7 @@ async fn get_text(url: &str) -> Result<String, String> {
         return Err(format!("HTTP {}", resp.status()));
     }
     let bytes = crate::net::read_limited(resp, 2 * 1024 * 1024).await?;
-    String::from_utf8(bytes).map_err(|_| "线路资料编码无效".into())
+    String::from_utf8(bytes).map_err(|_| "線路資料編碼無效".into())
 }
 
 /// 从 HTML 里挑出脚本地址（发布页只有一个 `publish.js?<版本>`）。
@@ -257,7 +257,7 @@ var foreverUrls = [
 
     /// 手动跑：`cargo test --lib -- --ignored lines::tests::mirrors_live -- --nocapture`
     #[tokio::test]
-    #[ignore = "联网测试：请求上游镜像列表，手动用 --ignored 运行"]
+    #[ignore = "連網測試：請求上游鏡像列表，手動用 --ignored 執行"]
     async fn mirrors_live() {
         match mirrors().await {
             Ok(v) => println!("{}", serde_json::to_string_pretty(&v).expect("json")),
@@ -267,7 +267,7 @@ var foreverUrls = [
 
     /// 手动跑：`cargo test --lib -- --ignored lines::tests::probe_live -- --nocapture`
     #[tokio::test]
-    #[ignore = "联网测试：探测上游线路连通性，手动用 --ignored 运行"]
+    #[ignore = "連網測試：探測上游線路連通性，手動用 --ignored 執行"]
     async fn probe_live() {
         let urls = vec![
             "https://huangguoai.com".to_string(),

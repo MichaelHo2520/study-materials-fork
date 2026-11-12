@@ -63,8 +63,8 @@ impl SessionStore {
         let mut cur = self.current.lock().unwrap();
         let next = Session { origin: origin.into(), token, user };
         if let Some(path) = self.file.lock().unwrap().as_ref() {
-            let plain = serde_json::to_vec(&next).map_err(|_| "无法编码会话")?;
-            if plain.len() as u64 > MAX_SESSION / 2 { return Err("会话资料过大".into()); }
+            let plain = serde_json::to_vec(&next).map_err(|_| "無法編碼會話")?;
+            if plain.len() as u64 > MAX_SESSION / 2 { return Err("會話資料過大".into()); }
             save_protected(path, &plain)?;
         }
         *cur = next; // Commit only after persistence succeeds.
@@ -83,7 +83,7 @@ fn remove_if_present(path: &Path) -> Result<(), String> {
     match std::fs::remove_file(path) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(_) => Err("无法移除旧会话，请检查应用数据目录权限".into()),
+        Err(_) => Err("無法移除舊會話，請檢查應用資料目錄權限".into()),
     }
 }
 
@@ -94,7 +94,7 @@ fn crypt(bytes: &[u8], protect: bool) -> Result<Vec<u8>, String> {
         CryptProtectData, CryptUnprotectData, CRYPT_INTEGER_BLOB, CRYPTPROTECT_UI_FORBIDDEN,
     };
     let input = CRYPT_INTEGER_BLOB {
-        cbData: u32::try_from(bytes.len()).map_err(|_| "会话资料过大")?,
+        cbData: u32::try_from(bytes.len()).map_err(|_| "會話資料過大")?,
         pbData: bytes.as_ptr() as *mut u8,
     };
     let mut output: CRYPT_INTEGER_BLOB = unsafe { std::mem::zeroed() };
@@ -109,7 +109,7 @@ fn crypt(bytes: &[u8], protect: bool) -> Result<Vec<u8>, String> {
                 std::ptr::null(), CRYPTPROTECT_UI_FORBIDDEN, &mut output)
         }
     };
-    if ok == 0 { return Err("Windows 无法保护或读取登录会话".into()); }
+    if ok == 0 { return Err("Windows 無法保護或讀取登入會話".into()); }
     let result = if output.cbData == 0 { Vec::new() }
         else { unsafe { std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec() } };
     unsafe { LocalFree(output.pbData.cast()); }
@@ -127,13 +127,13 @@ fn save_protected(path: &Path, plain: &[u8]) -> Result<(), String> {
         NEXT_TEMP.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
     let result = (|| {
         let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&temp)
-            .map_err(|_| "无法保存加密会话")?;
-        file.write_all(&encrypted).and_then(|_| file.sync_all()).map_err(|_| "无法保存加密会话")?;
+            .map_err(|_| "無法儲存加密會話")?;
+        file.write_all(&encrypted).and_then(|_| file.sync_all()).map_err(|_| "無法儲存加密會話")?;
         drop(file);
         let source: Vec<u16> = temp.as_os_str().encode_wide().chain(Some(0)).collect();
         let target: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
         if unsafe { MoveFileExW(source.as_ptr(), target.as_ptr(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) } == 0 {
-            return Err("无法替换加密会话".to_string());
+            return Err("無法替換加密會話".to_string());
         }
         Ok(())
     })();
@@ -143,7 +143,7 @@ fn save_protected(path: &Path, plain: &[u8]) -> Result<(), String> {
 
 #[cfg(not(windows))]
 fn save_protected(_path: &Path, _plain: &[u8]) -> Result<(), String> {
-    Err("此平台仅支持当次会话".into())
+    Err("此平台僅支援當次會話".into())
 }
 
 #[cfg(test)]

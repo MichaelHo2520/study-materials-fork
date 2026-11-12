@@ -23,10 +23,10 @@ export function EpisodesPanel({ videoId, episodes, current, onPick, onClose, bar
         </div>
       ) : (
         <div className="shrink-0 flex items-center gap-2 px-4 h-12">
-          <span className="text-[13.5px] font-bold text-on">选集</span>
+          <span className="text-[13.5px] font-bold text-on">選集</span>
           <span className="text-[10.5px] text-mut">共 {episodes.length} 集</span>
           <button onClick={() => setAsc((v) => !v)} className="ml-auto text-[11px] text-primary pressable">{asc ? "倒序" : "正序"}</button>
-          <button onClick={onClose} aria-label="关闭" className="w-7 h-7 rounded-full bg-s3 flex items-center justify-center text-mut pressable">
+          <button onClick={onClose} aria-label="關閉" className="w-7 h-7 rounded-full bg-s3 flex items-center justify-center text-mut pressable">
             <IClose size={13} />
           </button>
         </div>
@@ -40,9 +40,9 @@ export function EpisodesPanel({ videoId, episodes, current, onPick, onClose, bar
             </button>
           ))}
         </div>
-        {!episodes.length && <div className="text-center text-[11.5px] text-dim py-8">暂无剧集</div>}
+        {!episodes.length && <div className="text-center text-[11.5px] text-dim py-8">暫無劇集</div>}
       </div>
-      {!bare && <div className="shrink-0 px-4 py-2.5 text-[10.5px] text-dim bg-s2/60">剧集 ID {videoId} · 点选即切换播放</div>}
+      {!bare && <div className="shrink-0 px-4 py-2.5 text-[10.5px] text-dim bg-s2/60">劇集 ID {videoId} · 點選即切換播放</div>}
     </div>
   );
 }
@@ -90,10 +90,10 @@ export function CommentsPanel({ videoId, ep, total, kind = "video", onClose }: {
     try {
       await api.commentSend(videoId, ep, t);
       setText("");
-      toast("评论已提交，审核通过后展示", "ok");
+      toast("評論已提交，審核通過後展示", "ok");
       load(1);
     } catch (e) {
-      toast((e as Error).message || "评论失败", "info");
+      toast((e as Error).message || "評論失敗", "info");
     } finally {
       setSending(false);
     }
@@ -102,9 +102,9 @@ export function CommentsPanel({ videoId, ep, total, kind = "video", onClose }: {
   return (
     <div className="flex flex-col h-full">
       <div className="shrink-0 flex items-center gap-2 px-4 h-12">
-        <span className="text-[13.5px] font-bold text-on">评论</span>
+        <span className="text-[13.5px] font-bold text-on">評論</span>
         <span className="text-[10.5px] text-mut">{fmt(total)} · 第 {ep} 集</span>
-        <button onClick={onClose} aria-label="关闭" className="ml-auto w-7 h-7 rounded-full bg-s3 flex items-center justify-center text-mut pressable">
+        <button onClick={onClose} aria-label="關閉" className="ml-auto w-7 h-7 rounded-full bg-s3 flex items-center justify-center text-mut pressable">
           <IClose size={13} />
         </button>
       </div>
@@ -121,20 +121,20 @@ export function CommentsPanel({ videoId, ep, total, kind = "video", onClose }: {
               <p className="text-[12.5px] text-on/80 mt-1 leading-relaxed whitespace-pre-wrap">{c.text}</p>
               <div className="flex items-center gap-3 mt-1.5 text-[10.5px] text-dim">
                 <span className="flex items-center gap-1"><IHeart size={11} />{c.like_count || 0}</span>
-                {c.reply_count > 0 && <span>{c.reply_count} 条回复</span>}
+                {c.reply_count > 0 && <span>{c.reply_count} 條回覆</span>}
               </div>
             </div>
           </div>
         )) : loading ? (
           <div className="flex justify-center py-10"><div className="w-7 h-7 spinner" /></div>
         ) : (
-          <Empty icon={<IHeart size={22} />} title="还没有评论" sub="来抢第一个沙发" />
+          <Empty icon={<IHeart size={22} />} title="還沒有評論" sub="來搶第一個沙發" />
         )}
         {items.length > 0 && (
           <div className="flex justify-center py-4">
             {loading ? <div className="w-5 h-5 spinner" />
               : page < pages ? (
-                <button onClick={() => load(page + 1)} className="px-4 h-8 rounded-(--r-ctl) bg-s3 text-[11.5px] text-on/80 pressable">查看更多</button>
+                <button onClick={() => load(page + 1)} className="px-4 h-8 rounded-(--r-ctl) bg-s3 text-[11.5px] text-on/80 pressable">檢視更多</button>
               ) : <span className="text-[10.5px] text-dim">— 到底啦 —</span>}
           </div>
         )}
@@ -144,7 +144,7 @@ export function CommentsPanel({ videoId, ep, total, kind = "video", onClose }: {
         <Avatar size={30} name={user?.nickname || "我"} hue={322} />
         <input ref={inputRef} value={text} onChange={(e) => setText(e.target.value)}
           onFocus={() => { if (!user) setLoginOpen(true); }}
-          placeholder={user ? "说点什么…" : "登录后参与评论"}
+          placeholder={user ? "說點什麼…" : "登入後參與評論"}
           className="flex-1 min-w-0 h-9 rounded-(--r-ctl) bg-s4 px-3.5 text-[12.5px] text-on placeholder-dim outline-none focus:bg-s3" />
         <button type="submit" disabled={!text.trim() || sending}
           className={`w-9 h-9 rounded-full flex items-center justify-center pressable ${text.trim() ? "brand-grad glow-neon" : "bg-s3 text-dim"}`}>
@@ -162,15 +162,15 @@ export function ArticlePanel({ title, html, cover, hot, onClose }: {
   const safeHtml = useMemo(() => sanitizeHtml(html), [html, strictSecurity]);
   const openSafeLink = (url: string) => {
     api.openUrl(url).catch(() => {
-      navigator.clipboard?.writeText(url).then(() => toast("链接已复制", "ok")).catch(() => {});
+      navigator.clipboard?.writeText(url).then(() => toast("連結已複製", "ok")).catch(() => {});
     });
   };
   return (
     <div className="flex flex-col h-full">
       <div className="shrink-0 flex items-center gap-2 px-4 h-12">
-        <span className="text-[13.5px] font-bold text-on">图文详情</span>
-        {hot ? <span className="text-[10.5px] text-mut">{fmt(hot)} 热度</span> : null}
-        <button onClick={onClose} aria-label="关闭" className="ml-auto w-7 h-7 rounded-full bg-s3 flex items-center justify-center text-mut pressable">
+        <span className="text-[13.5px] font-bold text-on">圖文詳情</span>
+        {hot ? <span className="text-[10.5px] text-mut">{fmt(hot)} 熱度</span> : null}
+        <button onClick={onClose} aria-label="關閉" className="ml-auto w-7 h-7 rounded-full bg-s3 flex items-center justify-center text-mut pressable">
           <IClose size={13} />
         </button>
       </div>
@@ -178,7 +178,7 @@ export function ArticlePanel({ title, html, cover, hot, onClose }: {
         {cover && <img src={imageCover(cover)} alt="" className="w-full rounded-(--r-md) mb-3 object-cover" />}
         <h2 className="text-[16px] font-bold text-on leading-snug">{title}</h2>
         <div className="article-body mt-3" onClick={(e) => handleArticleClick(e, openSafeLink)} dangerouslySetInnerHTML={{ __html: safeHtml }} />
-        {!safeHtml && <p className="text-[12px] text-dim mt-4">这篇内容没有正文，可能只有图片或视频。</p>}
+        {!safeHtml && <p className="text-[12px] text-dim mt-4">這篇內容沒有正文，可能只有圖片或影片。</p>}
       </div>
     </div>
   );

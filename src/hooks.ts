@@ -16,7 +16,7 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = []) {
       const res = await fnRef.current();
       if (alive.current) setData(res);
     } catch (e) {
-      if (alive.current) setError((e as Error).message || "加载失败");
+      if (alive.current) setError((e as Error).message || "載入失敗");
     } finally {
       if (alive.current) setLoading(false);
     }
@@ -58,7 +58,7 @@ export function usePaged<T>(fetcher: (page: number) => Promise<{ items: T[]; pag
       setPages(res.pagination?.pages || next);
       setError(null);
     } catch (e) {
-      setError((e as Error).message || "加载失败");
+      setError((e as Error).message || "載入失敗");
     } finally {
       busy.current = false;
       setLoading(false);

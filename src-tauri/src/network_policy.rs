@@ -70,12 +70,12 @@ pub fn bind_security(dir: &Path) {
 
 /// 切换严格安全模式并落盘。
 pub fn set_strict_security(strict: bool) -> Result<(), String> {
-    let file = SECURITY_FILE.write().map_err(|_| "安全设置锁失败")?;
-    let path = file.as_ref().ok_or("安全设置尚未初始化")?;
+    let file = SECURITY_FILE.write().map_err(|_| "安全設定鎖失敗")?;
+    let path = file.as_ref().ok_or("安全設定尚未初始化")?;
     let temp = path.with_extension("json.tmp");
     std::fs::write(&temp, json!({ "strict": strict }).to_string())
         .and_then(|_| std::fs::rename(&temp, path))
-        .map_err(|_| "无法保存安全设置，请检查应用数据目录")?;
+        .map_err(|_| "無法儲存安全設定，請檢查應用資料目錄")?;
     STRICT.store(strict, Ordering::Relaxed);
     Ok(())
 }
@@ -127,24 +127,24 @@ pub fn parse_target(raw: &str) -> Result<Url, String> {
 }
 
 pub fn parse_target_with_mode(raw: &str, strict: bool) -> Result<Url, String> {
-    if raw.len() > 8192 { return Err("目标地址过长".into()); }
+    if raw.len() > 8192 { return Err("目標地址過長".into()); }
     if raw.chars().any(char::is_control) {
-        return Err("目标地址含控制字符".into());
+        return Err("目標地址含控制字元".into());
     }
-    let url = Url::parse(raw).map_err(|_| "目标地址无效")?;
+    let url = Url::parse(raw).map_err(|_| "目標地址無效")?;
     if !matches!(url.scheme(), "https" | "http")
         || !url.username().is_empty()
         || url.password().is_some()
     {
-        return Err("目标只允许不带认证信息的 HTTP(S) 地址".into());
+        return Err("目標只允許不帶認證資訊的 HTTP(S) 地址".into());
     }
-    match url.host().ok_or("目标缺少主机名")? {
+    match url.host().ok_or("目標缺少主機名")? {
         Host::Ipv4(ip) if strict => check_ip(ip.into())?,
         Host::Ipv6(ip) if strict => check_ip(ip.into())?,
         Host::Ipv4(_) | Host::Ipv6(_) => {}
         Host::Domain(name) => {
             if is_internal_webview_host(name) {
-                return Err("禁止访问应用内部协议主机名".into());
+                return Err("禁止訪問應用內部協議主機名".into());
             }
             let name = name.trim_end_matches('.').to_ascii_lowercase();
             if strict
@@ -152,7 +152,7 @@ pub fn parse_target_with_mode(raw: &str, strict: bool) -> Result<Url, String> {
                     .iter()
                     .any(|suffix| name == *suffix || name.ends_with(&format!(".{suffix}")))
             {
-                return Err("禁止访问本机或内网主机名".into());
+                return Err("禁止訪問本機或內網主機名".into());
             }
         }
     }
@@ -163,7 +163,7 @@ fn check_ip(ip: IpAddr) -> Result<(), String> {
     if allowed_ip(ip) {
         Ok(())
     } else {
-        Err("禁止访问普通内网、回环或保留地址（仅放行 FakeIP 198.18.0.0/15）".into())
+        Err("禁止訪問普通內網、迴環或保留地址（僅放行 FakeIP 198.18.0.0/15）".into())
     }
 }
 
@@ -174,7 +174,7 @@ pub fn check_addresses(addrs: &[SocketAddr]) -> Result<(), String> {
 
 pub fn check_addresses_with_mode(addrs: &[SocketAddr], strict: bool) -> Result<(), String> {
     if addrs.is_empty() {
-        return Err("目标没有可用的 DNS 地址".into());
+        return Err("目標沒有可用的 DNS 地址".into());
     }
     if strict {
         // 混合公私网答案整体拒绝，不能让连接器回退到私网地址。
@@ -193,8 +193,8 @@ fn sort_ipv6_first(addrs: &mut [SocketAddr]) {
 }
 
 pub async fn resolve_target(url: &Url, strict: bool) -> Result<Vec<SocketAddr>, String> {
-    let port = url.port_or_known_default().ok_or("目标端口无效")?;
-    let mut addrs = match url.host().ok_or("目标缺少主机名")? {
+    let port = url.port_or_known_default().ok_or("目標埠無效")?;
+    let mut addrs = match url.host().ok_or("目標缺少主機名")? {
         Host::Ipv4(ip) => vec![SocketAddr::new(ip.into(), port)],
         Host::Ipv6(ip) => vec![SocketAddr::new(ip.into(), port)],
         Host::Domain(host) => tokio::time::timeout(
@@ -202,8 +202,8 @@ pub async fn resolve_target(url: &Url, strict: bool) -> Result<Vec<SocketAddr>, 
             tokio::net::lookup_host((host, port)),
         )
         .await
-        .map_err(|_| "DNS 解析超时")?
-        .map_err(|_| "DNS 解析失败")?
+        .map_err(|_| "DNS 解析超時")?
+        .map_err(|_| "DNS 解析失敗")?
         .collect(),
     };
     sort_ipv6_first(&mut addrs);
@@ -221,10 +221,10 @@ pub fn redirect_target_with_mode(
     location: &str,
     strict: bool,
 ) -> Result<Url, String> {
-    let next = current.join(location).map_err(|_| "重定向地址无效")?;
+    let next = current.join(location).map_err(|_| "重新導向地址無效")?;
     let next = parse_target_with_mode(next.as_str(), strict)?;
     if strict && current.scheme() == "https" && next.scheme() != "https" {
-        return Err("禁止 HTTPS 降级重定向".into());
+        return Err("禁止 HTTPS 降級重新導向".into());
     }
     Ok(next)
 }

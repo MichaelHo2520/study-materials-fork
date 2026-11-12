@@ -79,8 +79,8 @@ function Fixture() {
         ? <Player src="https://media.fixture.invalid/list.m3u8" autoPlay active={active} className="w-full h-full" diagnosticContext={{ video_id: 991, active }} />
         : <Feed videoIds={[991]} mode="home" active={active} bottomInset={0} />}
     </div>
-    <button onClick={() => setActive((v) => !v)}>切换播放页激活状态</button>
-    {diagnosticTest && <button onClick={() => setSettings(v => !v)}>诊断设置</button>}
+    <button onClick={() => setActive((v) => !v)}>切換播放頁啟用狀態</button>
+    {diagnosticTest && <button onClick={() => setSettings(v => !v)}>診斷設定</button>}
     {settings && <div style={{ position: "relative", width: 900, height: 700 }}><Settings onBack={() => setSettings(false)} wide /></div>}
   </AppProvider>;
 }
@@ -91,18 +91,18 @@ async function checkIdleSeekTarget() {
   const deadline = performance.now() + 20000;
   while (performance.now() < deadline) {
     const video = document.querySelector("video");
-    const input = document.querySelector<HTMLInputElement>('input[aria-label="播放进度"]');
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="播放進度"]');
     if (video && input && video.currentTime > 0 && document.querySelector(".player-root.is-idle")) {
       const rect = input.getBoundingClientRect();
       if (document.elementFromPoint(rect.x + rect.width * .8, rect.y + rect.height / 2) !== input) {
-        throw new Error("闲置进度条点击穿透到视频");
+        throw new Error("閒置進度條點選穿透到影片");
       }
       document.querySelector("#results")!.textContent = JSON.stringify({ passed: 1, failed: 0 });
       return;
     }
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
   }
-  throw new Error("等待播放或控制条隐藏超时");
+  throw new Error("等待播放或控制條隱藏超時");
 }
 if (!legacyTest && !initiallyInactive) void checkIdleSeekTarget().catch((error) => {
   fixture.errors.push(String(error));
