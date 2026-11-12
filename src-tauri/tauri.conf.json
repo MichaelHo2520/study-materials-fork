@@ -46,6 +46,9 @@
     "android": {
       "minSdkVersion": 24
     },
+    "windows": {
+      "nsis": { "installMode": "currentUser" }
+    },
     "iOS": {
       "developmentTeam": "ABCDE12345"
     }

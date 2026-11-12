@@ -4,7 +4,7 @@
 //! 所以图片与视频统一走本地自定义协议（Windows/Android 为 `http://hg.localhost`，
 //! macOS 为 `hg://localhost`，见 [`LOCAL_ORIGIN`]）。
 
-use crate::net::fetch_bytes;
+use crate::net::{fetch_bytes, fetch_bytes_limited};
 use aes::cipher::{BlockDecrypt, KeyInit};
 use aes::Aes128;
 use once_cell::sync::Lazy;
@@ -41,14 +41,40 @@ const KEY_CACHE_MAX: usize = 120;
 const SEG_CACHE_MAX: usize = 36;
 const SEG_CACHE_MAX_BYTES: usize = 4 * 1024 * 1024;
 
-fn cache_put<V: Clone>(map: &Mutex<HashMap<String, V>>, key: String, val: V, max: usize) {
+trait CacheSize { fn cache_size(&self) -> usize; }
+impl CacheSize for Arc<Vec<u8>> { fn cache_size(&self) -> usize { self.len() } }
+impl CacheSize for Arc<String> { fn cache_size(&self) -> usize { self.len() } }
+impl CacheSize for (String, Arc<Vec<u8>>) { fn cache_size(&self) -> usize { self.0.len() + self.1.len() } }
+
+fn cache_put<V: CacheSize>(map: &Mutex<HashMap<String, V>>, key: String, val: V, max: usize, max_bytes: usize) {
     let mut m = map.lock().unwrap();
-    if m.len() >= max {
+    let weight = key.len().saturating_add(val.cache_size());
+    if max == 0 || weight > max_bytes { return; }
+    m.remove(&key);
+    let mut used: usize = m.iter().map(|(k, v)| k.len() + v.cache_size()).sum();
+    while m.len() >= max || used > max_bytes - weight {
         if let Some(k) = m.keys().next().cloned() {
-            m.remove(&k);
-        }
+            if let Some(v) = m.remove(&k) { used -= k.len() + v.cache_size(); }
+        } else { break; }
     }
     m.insert(key, val);
+}
+
+#[cfg(test)]
+#[test]
+fn cache_enforces_bytes_entries_and_replacement() {
+    let cache = Mutex::new(HashMap::<String, Arc<Vec<u8>>>::new());
+    cache_put(&cache, "a".into(), Arc::new(vec![0; 7]), 3, 16);
+    cache_put(&cache, "b".into(), Arc::new(vec![0; 7]), 3, 16);
+    assert_eq!(cache.lock().unwrap().len(), 2);
+    cache_put(&cache, "c".into(), Arc::new(vec![0; 11]), 3, 16);
+    assert_eq!(cache.lock().unwrap().len(), 1);
+    cache_put(&cache, "c".into(), Arc::new(vec![0; 15]), 3, 16);
+    assert_eq!(cache.lock().unwrap()["c"].len(), 15);
+    cache_put(&cache, "huge".into(), Arc::new(vec![0; 17]), 3, 16);
+    assert!(!cache.lock().unwrap().contains_key("huge"));
+    cache_put(&cache, "d".into(), Arc::new(vec![0; 1]), 1, 16);
+    assert_eq!(cache.lock().unwrap().len(), 1);
 }
 
 /* ───────────────────────── AES ───────────────────────── */
@@ -109,7 +135,7 @@ pub async fn load_image(url: &str) -> Result<(String, Arc<Vec<u8>>), String> {
         let kind = image_kind(&hit).unwrap_or("image/jpeg");
         return Ok((kind.to_string(), hit));
     }
-    let (_, bytes) = fetch_bytes(url).await?;
+    let (_, bytes) = fetch_bytes_limited(url, 8 * 1024 * 1024).await?;
     let plain = if image_kind(&bytes).is_some() {
         bytes
     } else {
@@ -118,7 +144,7 @@ pub async fn load_image(url: &str) -> Result<(String, Arc<Vec<u8>>), String> {
     };
     let kind = image_kind(&plain).unwrap_or("image/jpeg").to_string();
     let arc = Arc::new(plain);
-    cache_put(&IMG_CACHE, url.to_string(), arc.clone(), IMG_CACHE_MAX);
+    cache_put(&IMG_CACHE, url.to_string(), arc.clone(), IMG_CACHE_MAX, 64 * 1024 * 1024);
     Ok((kind, arc))
 }
 
@@ -197,13 +223,13 @@ pub async fn load_playlist(url: &str, prefix: &str) -> Result<Arc<String>, Strin
     if let Some(hit) = PL_CACHE.lock().unwrap().get(&cache_key).cloned() {
         return Ok(hit);
     }
-    let (_, bytes) = fetch_bytes(url).await?;
+    let (_, bytes) = fetch_bytes_limited(url, 2 * 1024 * 1024).await?;
     let text = std::str::from_utf8(&bytes).map_err(|_| "播放列表不是 UTF-8 文本")?;
     if !text.trim_start_matches('\u{feff}').starts_with("#EXTM3U") {
         return Err("响应不是 HLS 播放列表".into());
     }
     let arc = Arc::new(rewrite_playlist(url, text, prefix));
-    cache_put(&PL_CACHE, cache_key, arc.clone(), PL_CACHE_MAX);
+    cache_put(&PL_CACHE, cache_key, arc.clone(), PL_CACHE_MAX, 8 * 1024 * 1024);
     Ok(arc)
 }
 
@@ -281,9 +307,9 @@ pub async fn load_segment(url: &str) -> Result<(Option<String>, Arc<Vec<u8>>), S
     let len = bytes.len();
     let arc = Arc::new(bytes);
     if len <= 65536 {
-        cache_put(&KEY_CACHE, url.to_string(), (mime.clone(), arc.clone()), KEY_CACHE_MAX);
+        cache_put(&KEY_CACHE, url.to_string(), (mime.clone(), arc.clone()), KEY_CACHE_MAX, 8 * 1024 * 1024);
     } else if len <= SEG_CACHE_MAX_BYTES {
-        cache_put(&SEG_CACHE, url.to_string(), (mime.clone(), arc.clone()), SEG_CACHE_MAX);
+        cache_put(&SEG_CACHE, url.to_string(), (mime.clone(), arc.clone()), SEG_CACHE_MAX, 64 * 1024 * 1024);
     }
     Ok((Some(mime), arc))
 }

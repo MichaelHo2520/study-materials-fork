@@ -111,7 +111,8 @@ async fn get_text(url: &str) -> Result<String, String> {
     if !resp.status().is_success() {
         return Err(format!("HTTP {}", resp.status()));
     }
-    resp.text().await.map_err(|e| crate::net::err_text(&e))
+    let bytes = crate::net::read_limited(resp, 2 * 1024 * 1024).await?;
+    String::from_utf8(bytes).map_err(|_| "线路资料编码无效".into())
 }
 
 /// 从 HTML 里挑出脚本地址（发布页只有一个 `publish.js?<版本>`）。

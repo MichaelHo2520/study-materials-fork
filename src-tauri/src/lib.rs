@@ -29,7 +29,7 @@ fn allowed_dev_host(host: &str) -> bool {
 fn allowed_frontend_origin(origin: &str) -> bool {
     if matches!(
         origin,
-        "tauri://localhost" | "http://tauri.localhost" | "https://tauri.localhost" | "null"
+        "tauri://localhost" | "http://tauri.localhost" | "https://tauri.localhost"
     ) {
         return true;
     }
@@ -41,6 +41,16 @@ fn allowed_frontend_origin(origin: &str) -> bool {
                 && (!network_policy::strict_security()
                     || u.host_str().is_some_and(allowed_dev_host))
         })
+}
+
+#[cfg(test)]
+#[test]
+fn opaque_and_remote_origins_are_not_trusted_frontends() {
+    assert!(!allowed_frontend_origin("null"));
+    assert!(!allowed_frontend_origin("https://evil.example"));
+    assert!(!allowed_frontend_origin("http://tauri.localhost.evil.example"));
+    assert!(allowed_frontend_origin("http://tauri.localhost"));
+    assert!(allowed_frontend_origin("tauri://localhost"));
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -59,7 +69,7 @@ pub fn run() {
                 net::bind_base(&dir);
                 playback_log::bind(&dir);
                 let state: tauri::State<Api> = app.state();
-                state.session.bind(dir);
+                state.session.bind(dir).map_err(std::io::Error::other)?;
             }
             // macOS 主窗口在此创建：先按系统红绿灯尺寸算出居中位置（见 macos_titlebar.rs）
             #[cfg(target_os = "macos")]

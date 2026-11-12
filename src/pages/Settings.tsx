@@ -100,7 +100,7 @@ export default function Settings({ onBack, wide }: { onBack: () => void; wide: b
               <span className="w-8 h-8 rounded-full bg-s3 flex items-center justify-center text-primary"><IBroom size={16} /></span>
               <div className="flex-1">
                 <div className="text-[12.5px] text-on">清理缓存</div>
-                <div className="text-[10.5px] text-mut">封面 / 播放缓存与本地记录</div>
+                <div className="text-[10.5px] text-mut">封面与播放缓存；保留收藏、记录和登录</div>
               </div>
               <IChevR size={15} className="text-mut" />
             </button>
@@ -223,15 +223,15 @@ export default function Settings({ onBack, wide }: { onBack: () => void; wide: b
           </p>
 
           <div className="mt-4 rounded-(--r-sm) bg-s3/60 p-3 text-[11px] text-mut leading-relaxed">
-            本项目仅供学习与交流，所有内容均来自上游站点，客户端不存储、不分发任何视频内容。
-            请于 24 小时内删除相关资源，并支持正版。
+            本项目仅供非商业使用，内容来自第三方站点；播放期间会使用本地缓存。
+            Windows 登录会话加密保存；其他平台仅保留本次登录，退出应用后需重新登录。
           </div>
 
           <div className="mt-4 divide-y divide-s3">
-            <button onClick={() => { navigator.clipboard?.writeText("https://github.com/Minireel/HGhub").then(() => toast("仓库地址已复制", "ok")).catch(() => {}); }}
+            <button onClick={() => { navigator.clipboard?.writeText("https://github.com/MichaelHo2520/study-materials-fork").then(() => toast("仓库地址已复制", "ok")).catch(() => {}); }}
               className="w-full flex items-center gap-2 py-2.5 text-left pressable">
               <ILink size={15} className="text-mut" />
-              <span className="text-[12px] text-on/85">github.com/Minireel/HGhub</span>
+              <span className="text-[12px] text-on/85">MichaelHo2520/study-materials-fork · 源自 Minireel/HGhub</span>
               <span className="ml-auto text-[10.5px] text-primary">复制</span>
             </button>
             <button onClick={() => { navigator.clipboard?.writeText("https://huangguoai.com").then(() => toast("站点地址已复制", "ok")).catch(() => {}); }}
@@ -261,10 +261,13 @@ export default function Settings({ onBack, wide }: { onBack: () => void; wide: b
             <button onClick={() => setClearOpen(false)} className="flex-1 h-9 rounded-(--r-ctl) bg-s3 text-[12.5px] text-on/80 pressable">取消</button>
             <button disabled={clearing} onClick={async () => {
               setClearing(true);
-              try { await api.clearCache(); } catch { /* 忽略 */ }
-              setClearing(false);
-              setClearOpen(false);
-              toast("缓存已清理", "ok");
+              try {
+                await api.clearCache();
+                setClearOpen(false);
+                toast("缓存已清理", "ok");
+              } catch {
+                toast("缓存清理失败，请重试", "info");
+              } finally { setClearing(false); }
             }} className="flex-1 h-9 rounded-(--r-ctl) bg-primary text-[12.5px] font-semibold text-on-primary pressable disabled:opacity-60">
               {clearing ? "清理中…" : "确定清理"}
             </button>

@@ -72,7 +72,7 @@ pub async fn line_set(state: State<'_, Api>, url: String) -> Result<String, Stri
     let previous = base();
     let next = crate::net::set_base(&url)?;
     if previous != next {
-        state.session.clear();
+        state.session.clear()?;
     }
     Ok(next)
 }
@@ -94,7 +94,7 @@ pub async fn line_probe(urls: Vec<String>) -> Result<Value, String> {
 
 /* ───────────────────────── 更新检查 ───────────────────────── */
 
-const REPO: &str = "Minireel/HGhub";
+const REPO: &str = "MichaelHo2520/study-materials-fork";
 
 fn ver_parts(v: &str) -> Vec<u64> {
     v.trim()
@@ -142,7 +142,8 @@ pub async fn check_update() -> Result<Value, String> {
         return Err(format!("GitHub 返回 HTTP {status}"));
     }
 
-    let v: Value = resp.json().await.map_err(|e| crate::net::err_text(&e))?;
+    let bytes = crate::net::read_limited(resp, 2 * 1024 * 1024).await?;
+    let v: Value = serde_json::from_slice(&bytes).map_err(|_| "更新资料格式无效")?;
     let tag = v
         .get("tag_name")
         .and_then(|x| x.as_str())
@@ -335,7 +336,7 @@ pub async fn api_login(
     if base() != origin {
         return Err("登录期间线路已变化，请重新登录".into());
     }
-    state.session.set(&origin, token, user.clone());
+    state.session.set(&origin, token, user.clone())?;
     Ok(json!({ "user": user }))
 }
 
@@ -372,7 +373,7 @@ pub async fn api_register(
     if base() != origin {
         return Err("注册期间线路已变化，请重新登录".into());
     }
-    state.session.set(&origin, token, user.clone());
+    state.session.set(&origin, token, user.clone())?;
     Ok(json!({ "user": user }))
 }
 
@@ -388,7 +389,7 @@ pub async fn api_logout(state: State<'_, Api>) -> Result<Value, String> {
         token.as_deref(),
     )
     .await;
-    state.session.clear();
+    state.session.clear()?;
     Ok(json!({ "ok": true }))
 }
 
@@ -401,7 +402,7 @@ pub async fn api_me(state: State<'_, Api>) -> Result<Value, String> {
         return Err("读取账号期间线路已变化".into());
     }
     if let Some(token) = state.session.token(&origin) {
-        state.session.set(&origin, token, me.clone());
+        state.session.set(&origin, token, me.clone())?;
     }
     Ok(me)
 }

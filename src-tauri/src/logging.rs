@@ -6,6 +6,8 @@ use std::sync::Mutex;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime, UtcOffset};
 
 static DEBUG_WRITER: Mutex<()> = Mutex::new(());
+const MAX_DEBUG_FILE: u64 = 2 * 1024 * 1024;
+const MAX_DEBUG_MESSAGE: usize = 16 * 1024;
 
 fn format_utc(at: OffsetDateTime) -> Result<String, String> {
     at.to_offset(UtcOffset::UTC)
@@ -24,7 +26,9 @@ pub(crate) fn append_debug(dir: &Path, message: &str) -> Result<(), String> {
     let prefix = format!("[{at}] [pid={}] ", std::process::id());
     let mut record = String::new();
     // Stamp continuation lines too, including stack traces, HTML errors and pretty JSON.
-    for line in message.lines() {
+    let mut end = message.len().min(MAX_DEBUG_MESSAGE);
+    while !message.is_char_boundary(end) { end -= 1; }
+    for line in message[..end].lines() {
         record.push_str(&prefix);
         record.push_str(line);
         record.push('\n');
@@ -33,10 +37,16 @@ pub(crate) fn append_debug(dir: &Path, message: &str) -> Result<(), String> {
         record.push_str(&prefix);
         record.push('\n');
     }
+    let path = dir.join("debug.log");
+    if fs::metadata(&path).map(|m| m.len()).unwrap_or(0) + record.len() as u64 > MAX_DEBUG_FILE {
+        let previous = dir.join("debug.previous.log");
+        if previous.exists() { fs::remove_file(&previous).map_err(|_| "无法轮替调试日志")?; }
+        fs::rename(&path, previous).map_err(|_| "无法轮替调试日志")?;
+    }
     OpenOptions::new()
         .create(true)
         .append(true)
-        .open(dir.join("debug.log"))
+        .open(path)
         .and_then(|mut f| f.write_all(record.as_bytes()))
         .map_err(|_| "无法写入调试日志".to_string())
 }
@@ -55,6 +65,20 @@ mod tests {
         ));
         fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    fn debug_journal_rotates_and_bounds_utf8_messages() {
+        let dir = test_dir();
+        std::fs::write(dir.join("debug.log"), vec![b'x'; MAX_DEBUG_FILE as usize]).unwrap();
+        append_debug(&dir, &"測".repeat(MAX_DEBUG_MESSAGE)).unwrap();
+        assert_eq!(std::fs::metadata(dir.join("debug.previous.log")).unwrap().len(), MAX_DEBUG_FILE);
+        let current = std::fs::read_to_string(dir.join("debug.log")).unwrap();
+        assert!(current.len() < MAX_DEBUG_MESSAGE + 128);
+        std::fs::write(dir.join("debug.log"), vec![b'y'; MAX_DEBUG_FILE as usize]).unwrap();
+        append_debug(&dir, "second rotation").unwrap();
+        assert_eq!(std::fs::read(dir.join("debug.previous.log")).unwrap()[0], b'y');
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

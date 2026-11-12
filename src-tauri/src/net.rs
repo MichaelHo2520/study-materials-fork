@@ -378,6 +378,9 @@ pub async fn diagnose() -> Value {
 }
 
 fn retryable_error(error: &str) -> bool {
+    if error == "响应内容超过大小限制" || error == "媒体请求繁忙，请稍后重试" {
+        return false;
+    }
     if error == "401" {
         return false;
     }
@@ -565,7 +568,8 @@ pub async fn edge(
                         next = edge_redirect_target(&target, status.as_u16(), location, guest_get)?;
                         continue;
                     }
-                    let text = resp.text().await.map_err(|e| err_text(&e))?;
+                    let bytes = read_limited(resp, 8 * 1024 * 1024).await?;
+                    let text = String::from_utf8_lossy(&bytes);
                     if status.as_u16() == 401 || status.as_u16() == 403 {
                         return Err("401".to_string());
                     }
@@ -615,6 +619,28 @@ pub async fn edge(
 
 /// 拉原始字节（图片 / m3u8 / 分片）。
 pub async fn fetch_bytes(url: &str) -> Result<(Option<String>, Vec<u8>), String> {
+    fetch_bytes_limited(url, 32 * 1024 * 1024).await
+}
+
+pub async fn read_limited(mut response: reqwest::Response, max: usize) -> Result<Vec<u8>, String> {
+    const TOO_LARGE: &str = "响应内容超过大小限制";
+    if response.content_length().is_some_and(|n| n > max as u64) {
+        return Err(TOO_LARGE.into());
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(|e| err_text(&e))? {
+        // Check decoded chunks too: missing/false Content-Length and compression cannot bypass this.
+        if chunk.len() > max.saturating_sub(body.len()) { return Err(TOO_LARGE.into()); }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
+}
+
+pub async fn fetch_bytes_limited(url: &str, max: usize) -> Result<(Option<String>, Vec<u8>), String> {
+    static MEDIA_SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(4);
+    let _slot = tokio::time::timeout(Duration::from_secs(20), MEDIA_SLOTS.acquire()).await
+        .map_err(|_| "媒体请求繁忙，请稍后重试")?
+        .map_err(|_| "媒体请求繁忙，请稍后重试")?;
     static NEXT_REQUEST: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let request = NEXT_REQUEST.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let resource = crate::playback_log::resource_id(url);
@@ -644,7 +670,7 @@ pub async fn fetch_bytes(url: &str) -> Result<(Option<String>, Vec<u8>), String>
                     .get(reqwest::header::CONTENT_TYPE)
                     .and_then(|v| v.to_str().ok())
                     .map(|s| s.to_string());
-                let bytes = resp.bytes().await.map_err(|e| err_text(&e))?.to_vec();
+                let bytes = read_limited(resp, max).await?;
                 Ok((ctype, bytes))
             }.await;
             crate::playback_log::record("network.end", json!({"request": request, "resource": resource, "attempt": attempt, "status": status, "headers_ms": headers_ms, "elapsed_ms": started.elapsed().as_millis() as u64, "bytes": result.as_ref().ok().map(|(_, bytes)| bytes.len()), "error_kind": result.as_ref().err().map(|e: &String| crate::playback_log::error_kind(e))}));
@@ -657,6 +683,32 @@ pub async fn fetch_bytes(url: &str) -> Result<(Option<String>, Vec<u8>), String>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    async fn fixture_response(raw: &'static [u8]) -> reqwest::Response {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        std::thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut request = [0u8; 4096];
+            let _ = socket.read(&mut request);
+            let _ = socket.write_all(raw);
+        });
+        reqwest::Client::builder().no_proxy().timeout(Duration::from_secs(5)).build().unwrap()
+            .get(format!("http://{address}")).send().await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn response_limit_handles_declared_chunked_and_exact_sizes() {
+        let response = fixture_response(b"HTTP/1.1 200 OK\r\nContent-Length: 1000000\r\nConnection: close\r\n\r\n").await;
+        assert_eq!(read_limited(response, 8).await.unwrap_err(), "响应内容超过大小限制");
+        let response = fixture_response(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n4\r\nabcd\r\n5\r\nefghi\r\n0\r\n\r\n").await;
+        assert_eq!(read_limited(response, 8).await.unwrap_err(), "响应内容超过大小限制");
+        let response = fixture_response(b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\nConnection: close\r\n\r\nabcdefgh").await;
+        assert_eq!(read_limited(response, 8).await.unwrap(), b"abcdefgh");
+        assert!(!retryable_error("响应内容超过大小限制"));
+    }
 
     #[tokio::test]
     async fn terminal_errors_do_not_retry_but_transient_failures_can_recover() {
